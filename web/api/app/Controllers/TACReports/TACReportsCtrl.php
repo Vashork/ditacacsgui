@@ -6,16 +6,12 @@ namespace tgui\Controllers\TACReports;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Illuminate\Support\Facades\DB as DB;
 
 use tgui\Services\CMDRun\CMDRun as CMDRun;
 
-use tgui\Models\TACDevices;
-use tgui\Models\TACUsers;
 use tgui\Models\Accounting;
 use tgui\Models\Authentication;
 use tgui\Models\Authorization;
-use tgui\Models\APISettings;
 use tgui\Controllers\Controller;
 
 class TACReportsCtrl extends Controller

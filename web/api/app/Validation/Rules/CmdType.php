@@ -3,7 +3,6 @@
 namespace tgui\Validation\Rules;
 
 use Respect\Validation\Rules\AbstractRule;
-use tgui\Controllers\Controller;
 
 class CmdType extends AbstractRule
 {

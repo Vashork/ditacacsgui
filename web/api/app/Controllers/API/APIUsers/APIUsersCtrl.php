@@ -7,7 +7,6 @@ namespace tgui\Controllers\API\APIUsers;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use tgui\Models\APIUsers;
-use tgui\Models\APIUserGrps;
 use tgui\Models\APIPWPolicy;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;

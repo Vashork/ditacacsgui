@@ -6,7 +6,6 @@ namespace tgui\Controllers\TACConfig;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use tgui\Controllers\TACConfig\ConfigPatterns;
 use tgui\Models\TACGlobalConf;
 use tgui\Controllers\Controller;
 // use tgui\Controllers\APISettings\HA;

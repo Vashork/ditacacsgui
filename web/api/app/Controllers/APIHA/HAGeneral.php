@@ -7,9 +7,6 @@ use Symfony\Component\Yaml\Yaml;
 use tgui\Controllers\Controller;
 use tgui\Controllers\APIUpdate\APIUpdateCtrl;
 
-use tgui\Controllers\APIHA\HAMaster;
-use tgui\Controllers\APIHA\HASlave;
-
 class HAGeneral extends Controller
 {
   private $mainDir = '/opt/tgui_data/ha';

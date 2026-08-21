@@ -6,7 +6,6 @@ namespace tgui\Controllers\ConfManager;
 
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
-use tgui\Controllers\ConfManager\ConfManagerHelper as Helper;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

@@ -2,7 +2,6 @@
 
 namespace tgui\Validation\Rules;
 
-use tgui\Models\Conf_Models;
 use Respect\Validation\Rules\AbstractRule;
 
 class TheSameNameUsed extends AbstractRule

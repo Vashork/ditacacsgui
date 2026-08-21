@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace tgui\Controllers\ConfManager;
 
 use tgui\Models\Conf_Queries;
-use tgui\Models\Conf_Devices;
 use tgui\Models\Conf_Models;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;

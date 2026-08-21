@@ -25,7 +25,7 @@ tacplus_build() {
     # Expected layout: the tarball unpacks to a top-level `tac_plus/` directory
     # containing the `configure` script. If your tarball extracts to a different
     # top-level dir name, adjust this path before building.
-    cd "${BUILD_DIR}/tac_plus"
+    cd "${BUILD_DIR}/tac_plus" || { echo "ERROR: ${BUILD_DIR}/tac_plus not found (did the tarball extract to a different top-level dir?)" >&2; return 1; }
     ./configure --with-pcre2
     make
     make install

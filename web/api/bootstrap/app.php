@@ -18,7 +18,6 @@ use Slim\App;
 use Slim\Factory\AppFactory;
 use DI\Container;
 use Illuminate\Database\Capsule\Manager as Capsule;
-use tgui\Controllers\APIHA\HAGeneral;
 
 // Create DI Container
 $container = new Container();

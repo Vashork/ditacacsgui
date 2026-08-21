@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace tgui\Controllers\TAC\TACUsers;
 
 use tgui\Models\TACUsers;
-use tgui\Models\TACUserGrps;
 use tgui\Models\MAVISOTP;
 use tgui\Models\TACGlobalConf;
 use tgui\Models\APIPWPolicy;

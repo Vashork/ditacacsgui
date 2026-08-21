@@ -2,7 +2,6 @@
 namespace tgui\Controllers\APIHA;
 
 use tgui\Controllers\Controller;
-use tgui\Controllers\APIUpdate\APIUpdateCtrl;
 
 use GuzzleHttp\Client as gclient;
 use GuzzleHttp\Exception\RequestException;

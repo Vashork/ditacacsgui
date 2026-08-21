@@ -11,7 +11,6 @@ use tgui\Models\TACDevices;
 
 use tgui\Controllers\Controller;
 
-use tgui\Services\CMDRun\CMDRun as CMDRun;
 
 class TACExportCtrl extends Controller
 {

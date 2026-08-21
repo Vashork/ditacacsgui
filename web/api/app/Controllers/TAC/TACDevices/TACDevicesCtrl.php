@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace tgui\Controllers\TAC\TACDevices;
 
 use tgui\Models\TACDevices;
-use tgui\Models\TACDeviceGrps;
 use tgui\Models\APIPWPolicy;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
