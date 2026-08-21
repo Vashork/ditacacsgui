@@ -62,8 +62,8 @@ step_os()        { log "OS: preflight + apt, Angie, PHP ${PHP_VERSION} PPA, ntps
 step_db()        { log "DB: MySQL 8.0, ${DB_APP}+${DB_LOG}, ${DB_USER}, repl";   db_install; db_provision; db_loginpaths; }
 step_ha()        { log "HA: role=${ROLE} (binlog, server-id, CHANGE MASTER TO)"; ha_setup; }
 step_python()    { log "Python: venv + pip deps (parser)";                        python_setup; }
-step_app()       { log "App: git clone, composer install (lock), config";         echo "TODO: func_app.sh"; }
-step_tacplus()   { log "tac_plus: build 2024 + PCRE2, install systemd unit";      echo "TODO: func_tacplus.sh"; }
+step_app()       { log "App: git clone, composer install (lock), config";         app_deploy; app_compose; app_env; }
+step_tacplus()   { log "tac_plus: build 2024 + PCRE2, install systemd unit";      tacplus_build; tacplus_service; }
 step_web()       { log "Web: Angie vhost + PHP-FPM pool/ini, activate";           echo "TODO: func_web.sh"; }
 step_sudoers()   { log "Sudoers: www-data -> tac_plus.sh / main.sh";               echo "TODO: func_sudoers.sh"; }
 step_finalize()  { log "Finalize: dirs, log perms, first boot, health check";      echo "TODO: func_finalize.sh"; }
