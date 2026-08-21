@@ -1,7 +1,7 @@
 # TacacsGUI Installer (fork)
 
 ## Status
-> **SKELETON / IN PROGRESS.** The config templates (Angie vhosts, systemd units, PHP-FPM pool, MySQL 8.0 + replication, sudoers) are in place. The main `install.sh` orchestration and the `inc/func_*.sh` step scripts are still being written. Do NOT run this installer yet.
+> **FUNCTIONALLY COMPLETE (code) — NOT yet end-to-end tested on a real VM.** All 9 step scripts (`inc/func_*.sh`) and the orchestrator (`install.sh`) are implemented, plus all config templates under `inc/conf/`. `bash -n` is clean and a stubbed dry-run walks all 9 steps. **Remaining work:** vendor `install/tac_plus.tgz` and run the installer on a clean Ubuntu 22.04/24.04 VM (master + a slave) to prove the full flow incl. HA replication. Do NOT run on production until that VM test passes.
 
 ## What it installs
 Target stack (locked):
@@ -25,22 +25,25 @@ Target stack (locked):
 ```
 install/
 ├── README.md             # exists
-├── install.sh            # (TODO) main orchestrator, idempotent, --role flag
+├── install.sh            # main orchestrator, idempotent, --role flag
 ├── inc/
-│   ├── map.sh            # (TODO) paths/constants
-│   ├── func_os.sh        # (TODO) apt, Angie, PHP 8.2 PPA, ntpsec
-│   ├── func_db.sh        # (TODO) MySQL 8.0, two DBs, tgui_user, repl user
-│   ├── func_python.sh    # (TODO) venv + pip deps
-│   ├── func_app.sh       # (TODO) git clone, composer install (lock), config
-│   ├── func_tacplus.sh   # (TODO) build tac_plus 2024 + PCRE2, install unit
-│   ├── func_ha.sh        # (TODO) master/slave: binlog, server-id, CHANGE MASTER TO
-│   └── conf/             # EXISTS — config templates
-│       ├── angie/        # EXISTS: tacacsgui.conf, tacacsgui-ssl.conf
-│       ├── systemd/      # EXISTS: tac_plus.service, tgui-selftest.{service,timer}
-│       ├── mysql/        # EXISTS: tgui.cnf, replication.cnf
-│       ├── php/          # EXISTS: tgui-fpm-pool.conf, 80-tacacsgui.ini
-│       └── sudoers/      # EXISTS: www-data-sudo, tgui_sudoers
-└── tac_plus.tgz          # (TODO) vendored 2024 build (from ichantio)
+│   ├── map.sh            # paths/constants
+│   ├── func_os.sh        # apt, Angie, PHP 8.2 PPA, ntpsec
+│   ├── func_db.sh        # MySQL 8.0, two DBs, tgui_user, repl user, login-paths
+│   ├── func_ha.sh        # master/slave/standalone: binlog, server-id, CHANGE MASTER TO
+│   ├── func_python.sh    # venv + pip deps
+│   ├── func_app.sh       # git clone, composer install (lock), .env
+│   ├── func_tacplus.sh   # build tac_plus 2024 + PCRE2, install systemd unit
+│   ├── func_web.sh       # self-signed cert, Angie vhosts, PHP-FPM pool/ini, activate
+│   ├── func_sudoers.sh   # www-data drop-in (visudo -cf validated)
+│   ├── func_finalize.sh  # data/log dirs, health checks
+│   └── conf/             # config templates
+│       ├── angie/        # tacacsgui.conf, tacacsgui-ssl.conf
+│       ├── systemd/      # tac_plus.service, tgui-selftest.{service,timer}
+│       ├── mysql/        # tgui.cnf, replication.cnf
+│       ├── php/          # tgui-fpm-pool.conf, 80-tacacsgui.ini
+│       └── sudoers/      # www-data-sudo, tgui_sudoers
+└── tac_plus.tgz          # (TODO) vendored 2024 build (from ichantio) — NOT yet committed
 ```
 
 ## Design decisions
@@ -50,11 +53,12 @@ install/
 - **Phone-home disabled**: tacacsgui.com/updates is dead; code defaults to https://localhost/updates/.
 - **Based on ichantio artifacts**: tac_plus.tgz (2024-09-11, PCRE2), mysql_config_editor pattern, ntpsec choice, parser filters — adapted, not copied.
 
-## NOT YET (do not expect these to work)
-- install.sh orchestration
-- inc/func_*.sh step scripts
-- tac_plus.tgz vendoring
-- end-to-end install test on a clean VM
+## REMAINING (before this can run on a real box)
+- **Vendor `install/tac_plus.tgz`** (download from ichantio, ~8.6 MB, PCRE2 2024-09-11 build). Not yet committed (binary).
+- **End-to-end install test on a clean Ubuntu 22.04/24.04 VM** — master + a slave to prove HA replication (GTID, `Slave_IO/SQL_Running=Yes`).
+- Confirm the distro's Angie service name (`angie` vs `nginx`) and the `angie` apt package availability on 22.04/24.04 during the VM test.
+
+Everything else (orchestrator, all 9 `func_*.sh`, all config templates) is implemented.
 
 ## References
 - ichantio installer: https://github.com/ichantio/tacacsgui-installation

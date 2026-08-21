@@ -64,9 +64,9 @@ step_ha()        { log "HA: role=${ROLE} (binlog, server-id, CHANGE MASTER TO)";
 step_python()    { log "Python: venv + pip deps (parser)";                        python_setup; }
 step_app()       { log "App: git clone, composer install (lock), config";         app_deploy; app_compose; app_env; }
 step_tacplus()   { log "tac_plus: build 2024 + PCRE2, install systemd unit";      tacplus_build; tacplus_service; }
-step_web()       { log "Web: Angie vhost + PHP-FPM pool/ini, activate";           echo "TODO: func_web.sh"; }
-step_sudoers()   { log "Sudoers: www-data -> tac_plus.sh / main.sh";               echo "TODO: func_sudoers.sh"; }
-step_finalize()  { log "Finalize: dirs, log perms, first boot, health check";      echo "TODO: func_finalize.sh"; }
+step_web()       { log "Web: SSL, Angie vhost, PHP-FPM pool/ini, activate";       web_ssl; web_angie; web_fpm; web_activate; }
+step_sudoers()   { log "Sudoers: www-data -> tac_plus.sh / main.sh";               sudoers_install; }
+step_finalize()  { log "Finalize: dirs, log perms, health check";                 finalize_dirs; finalize_health; }
 
 # --- Run in order ---------------------------------------------------------------
 log "TacacsGUI installer starting (role=${ROLE}, host=${WEBSERVER_NAME})"
@@ -80,4 +80,5 @@ step_web
 step_sudoers
 step_finalize
 
-log "DONE (skeleton). Real step bodies are TODO."
+log "DONE. All 9 steps ran (os/db/ha/python/app/tacplus/web/sudoers/finalize)."
+log "NOTE: this flow has NOT been end-to-end tested on a real Ubuntu VM yet."
