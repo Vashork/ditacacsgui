@@ -194,6 +194,113 @@ HA — **MySQL GTID-репликация** `tgui` (мастер → слейв).
 
 ---
 
-*Руководство основано на актуальном коде ditacacsgui (commit 9aef261). Поля и маршруты —
+---
+
+## 8. Развёртывание на 2 VM (master + slave, кросс-репликация)
+
+> **Почему это отдельная инструкция:** в WSL2 оба дистра делили один network
+> namespace (одиначный MAC/IP/lo) → порты `:80`/`:3306`/`:33060` конфликтовали и
+> 2-й живой узел поднять было невозможно. На **отдельных VM** у каждого узла
+> свой netns — репликация работает нативно. Эта инструкция — тот самый
+> production-путь, который WSL-стенд не мог проверить.
+
+### Требования
+- 2 VM с чистым **Ubuntu 22.04 / 24.04** (amd64), systemd, root/sudo.
+- Сеть: slave видит master по IP, порты **3306** (repl) и **80/443** (web) открыты меж узлами.
+- Доступ к репозиторию Angie + ondrej PHP PPA (интернет на этапе установки).
+
+### Слой 0 — выберите общие пароли (одинаковые на обоих узлах!)
+Инсталлятор генерирует пароли сам, но **для репликации `tgui_user` и `tgui_repl`
+должны совпадать на мастере и слейве**. Зафиксируйте их (или позвольте генерации и
+считайте `app-pass`/`repl-pass` с мастера):
+
+```bash
+# сгенерируйте один раз и подставьте в обе команды ниже
+APP_PASS=$(openssl rand -base64 16 | tr -cd '[:alnum:]' | cut -c1-12)
+REPL_PASS=$(openssl rand -base64 16 | tr -cd '[:alnum:]' | cut -c1-12)
+RO_PASS=$(openssl rand -base64 16  | tr -cd '[:alnum:]' | cut -c1-12)
+echo "APP_PASS=$APP_PASS"; echo "REPL_PASS=$REPL_PASS"; echo "RO_PASS=$RO_PASS"
+```
+
+### Шаг 1 — МАСТЕР
+```bash
+# на MA
+sudo TGUI_MYSQL_APPPASS="$APP_PASS" TGUI_MYSQL_REPLPASS="$REPL_PASS" TGUI_MYSQL_ROPASS="$RO_PASS" \
+     ./install.sh --role master --web-name tacacsgui.local
+```
+Результат: `server-id=1`, binlog+GTID, `ha-settings.yaml: role: 1`, юзеры
+`tgui_user`/`tgui_repl`/`tgui_ro` созданы. Проверка:
+```bash
+systemctl is-active angie php8.2-fpm mysql tac_plus   # все active
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1/api/auth/signin/ \
+     -H 'Content-Type: application/json' -d '{"username":"tacgui","password":"tacgui"}'   # 200
+```
+
+### Шаг 2 — СЛЕЙВ
+```bash
+# на SLAVE (MA_IP = IP мастера)
+sudo TGUI_MYSQL_APPPASS="$APP_PASS" TGUI_MYSQL_REPLPASS="$REPL_PASS" TGUI_MYSQL_ROPASS="$RO_PASS" \
+     TGUI_HA_MASTER_IP="<MA_IP>" \
+     ./install.sh --role slave --web-name tacacsgui.local
+```
+Результат: `server-id=2`, `read_only=ON`/`super_read_only=ON`,
+`CHANGE MASTER TO <MA_IP> ... MASTER_AUTO_POSITION=1` + `START SLAVE`,
+`ha-settings.yaml: role: 2` + `psk_s=$RO_PASS` (www-data:640), web-приложение
+подключается как `tgui_ro`. Проверка:
+```bash
+mysql --login-path=root -e "SHOW REPLICA STATUS\G" | grep -E 'Replica_IO_Running|Replica_SQL_Running|Seconds_Behind_Source|Last_IO_Error'
+# ожидаем: Yes / Yes / 0 / пусто
+```
+
+### Шаг 3 — Тест репликации данных
+```bash
+# на МАСТЕРЕ — пометка
+mysql --login-path=root tgui -e "CREATE TABLE IF NOT EXISTS ha_test(id INT); INSERT INTO ha_test VALUES (42);"
+# на СЛЕЙВЕ — проверить (read-only, через tgui_user или root)
+mysql -u tgui_user -p"$APP_PASS" tgui -e "SELECT * FROM ha_test;"   # 42
+# затем удалить
+mysql --login-path=root tgui -e "DROP TABLE ha_test;"
+```
+
+### Шаг 4 — Тест web-приложения на слейве
+```bash
+# на СЛЕЙВЕ — логин должен читать реплицированные данные как tgui_ro
+curl -s -o /dev/null -w 'slave login %{http_code}\n' -X POST http://127.0.0.1/api/auth/signin/ \
+     -H 'Content-Type: application/json' -d '{"username":"tacgui","password":"tacgui"}'   # 200
+```
+
+### Шаг 5 — Тест failover (опционально, на изолированном стенде)
+1. Остановить мастера: `sudo systemctl stop angie` (или весь узел).
+2. Направить трафик web на slave (`tacacsgui.local` → IP slave в DNS/hosts).
+3. Web на slave продолжает отвечать (read-only данные). **Записи** недоступны, пока
+   master не поднят (slave `read_only`).
+4. Поднять master → репликация продолжает с GTID auto-position (без пересоздания).
+
+### Шаг 6 — LDAP (на мастере, данные реплицируются на slave)
+*MAVIS → LDAP* → заполнить `hosts`/`user`/`password`/`path`/`enabled` → **Test** →
+**Check** → **group search/bind** (LDAP-группа → TACACS-группа) → Apply config.
+См. §3.
+
+### Что НЕ делается инсталлятором (ручной довод)
+- **Реальный TLS-сертификат** (из коробки self-signed `WEBSERVER_SELFSIGNED_CERT=1`);
+  замените cert в `/opt/tgui_data/ssl/` + пересоберите vhost.
+- **Backup-политика** (cron на `/backup/make/` или внешняя дробь БД).
+- **Мониторинг** (алерт на `Replica_SQL_Running=No`, `Seconds_Behind_Source>60`).
+
+---
+
+## 9. Docker — решение задержано
+
+В репозитории **нет** `Dockerfile`/`docker-compose`/build-скрипта (проверено:
+`**/Dockerfile`, `**/docker-compose*`, `**/Makefile`, `.github/workflows` — отсутствуют;
+единственные упоминания «docker» — в бинарных ассетах и в тексте `WORK_LOG.md`).
+Поэтому Docker-пакинг **не готов** и требует отдельной работы (многоконтейнерный
+стек: angie + php8.2-fpm + mysql + tac_plus + network для репликации). Решение
+сделать ли это — за пользователем, после успешного деплоя на 2 VM + LDAP.
+
+---
+
+*Руководство основано на актуальном коде ditacacsgui (commit ef8feb1). Поля и маршруты —
 из `web/api/app/routes.php`, `app/Models/*.php`, `app/Controllers/*`. Креды/IP — см.
-Karpaty Wiki `credentials-and-ips.md`.*
+Karpaty Wiki `credentials-and-ips.md`. Инсталлер-контракт (§8) — из
+`install/install.sh` + `install/inc/map.sh`/`func_db.sh`/`func_ha.sh`.*
