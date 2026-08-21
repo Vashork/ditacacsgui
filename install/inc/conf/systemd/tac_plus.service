@@ -1,0 +1,23 @@
+# tac_plus.service - systemd replacement for the old upstart job (/etc/init/tac_plus.conf)
+# which is dead on Ubuntu 22.04+ (upstart removed). Wraps the existing
+# SysV-style init script /opt/tacacsgui/tac_plus.sh (start|stop|restart|status).
+
+[Unit]
+Description=TacacsGUI tac_plus TACACS+ daemon
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=root
+PIDFile=/var/run/tac_plus.pid
+ExecStart=/opt/tacacsgui/tac_plus.sh start
+ExecStop=/opt/tacacsgui/tac_plus.sh stop
+ExecReload=/opt/tacacsgui/tac_plus.sh restart
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

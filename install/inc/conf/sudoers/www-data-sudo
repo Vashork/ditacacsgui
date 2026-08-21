@@ -1,0 +1,11 @@
+# TacacsGUI - sudoers drop-in (install as /etc/sudoers.d/tacacsgui-www-data)
+# Grants www-data (the PHP/web server user) passwordless control of the
+# tac_plus daemon (/opt/tacacsgui/tac_plus.sh) and the app main script
+# (/opt/tacacsgui/main.sh).
+# The command paths are given WITHOUT a trailing wildcard; sudo permits
+# any arguments to those exact paths.
+# Validate with: visudo -cf /etc/sudoers.d/tacacsgui-www-data
+# A malformed sudoers file can lock out root - validate before activating.
+
+www-data ALL=(ALL) NOPASSWD: /opt/tacacsgui/tac_plus.sh
+www-data ALL=(ALL) NOPASSWD: /opt/tacacsgui/main.sh

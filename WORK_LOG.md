@@ -882,13 +882,52 @@ install/
 
 ---
 
-## CONTINUATION POINT (for next session, ~12h later)
+## Install layer — PROGRESS (2026-08-21 evening)
 
-**Where we stopped:** All planning + decisions are LOCKED above. Nothing to re-decide.
+### DONE: `install/` foundation (skeleton) — committed
+6 parallel agents + orchestrator wrote the **config templates + orchestrator skeleton**:
+```
+install/
+├── README.md                     # status + stack + HA roles + layout (honest: skeleton)
+├── install.sh                    # ORCHESTRATOR: --role master|slave|standalone, 9 steps, idempotent
+├── inc/
+│   ├── map.sh                    # all paths/constants (TGUI_ROOT, DBs, PHP 8.2, FPM sock, HA ids)
+│   └── conf/
+│       ├── angie/                # tacacsgui.conf (:80) + tacacsgui-ssl.conf (:443, TLS1.2/1.3, HSTS)
+│       ├── systemd/              # tac_plus.service (Type=forking, wraps tac_plus.sh), tgui-selftest.{service,timer}
+│       ├── mysql/                # tgui.cnf (utf8mb4, tuning) + replication.cnf (GTID, ROW, replicate-do-db=tgui)
+│       ├── php/                  # tgui-fpm-pool.conf (pm dynamic, env TAC_ROOT_PATH) + 80-tacacsgui.ini
+│       └── sudoers/              # www-data-sudo + tgui_sudoers (NOPASSWD tac_plus.sh / main.sh, no wildcard)
+```
+**Verified:** `bash -n` clean on install.sh + map.sh; dry-run `install.sh --role master` exits 0 and walks all 9 steps (os→db→ha→python→app→tacplus→web→sudoers→finalize) in order. The `func_*.sh` step bodies are TODO stubs (skeleton, not runnable on a real box yet).
+
+### ichantio artifact facts (confirmed, for the func_* step work)
+- **`tac_plus.tgz`** is VENDORED at ichantio repo ROOT (no download URL), ~8.6 MB, extracts to `./tac_plus/` (dir, not versioned). Build: `cd tac_plus && ./configure --with-pcre2 && make && make install`. Provenance: MarcJHuber/event-driven-servers (2024-09-11 build).
+- They use **Apache/mod_php** (we use **Angie/PHP-FPM** instead — adapt their vhost, don't copy).
+- Their `tac_plus.service` is NOT a real unit — they `cp /opt/tacacsgui/tac_plus.sh /etc/init.d/tac_plus` + `systemctl enable` (SysV wrap). **We write a proper systemd unit** (done: `tac_plus.service`, Type=forking).
+- **mysql_config_editor**: they drive the interactive prompt with `unbuffer expect -c "spawn mysql_config_editor set --login-path=... --password; expect \"Enter password:\" send \"$PW\r\"; interact"`. Two login-paths: `root`, `tacacsgui`. Random 12-char alnum passwords via `openssl rand -base64 16 | tr -cd '[:alnum:]' | cut -c1-12`.
+- **ntpsec**: `apt-get install -y ntpsec; mkdir -p /var/log/ntpsec; chown root:ntpsec /var/log/ntpsec; chmod 775`.
+- Their filter files: only `conf/acc-filter.txt` has content; `autho-filter.txt`/`authe-filter.txt` are EMPTY (0 bytes).
+
+### CONTINUATION POINT (next session)
+
+**Where we are:** `install/` skeleton committed (configs + orchestrator + map.sh). The 9 step bodies (`inc/func_*.sh`) are the next work.
 
 **Next session FIRST ACTIONS (in order):**
-1. **Create `install/` directory** with the layout above (empty scaffold first).
-2. **Download ichantio's `tac_plus.tgz`** (2024-09-11) from `ichantio/tacacsgui-installation` → vendor into `install/tac_plus.tgz`. Verify SHA, confirm it extracts to a `configure` script supporting `--with-pcre2`.
+1. **Vendor `tac_plus.tgz`**: download from `ichantio/tacacsgui-installation` root → `install/tac_plus.tgz`. Verify it's a valid gzip (~8.6 MB), extracts to a `tac_plus/` dir containing a `configure` script. (Binary — commit or git-lfs per repo policy.)
+2. **Write `inc/func_os.sh`**: apt base + Angie + PHP 8.2 (ondrej PPA: `php8.2 php8.2-fpm php8.2-{curl,ldap,gd,mbstring,zip,mysql,xml,sockets,common,cli,dev}`) + ntpsec. (Smallest, do first.)
+3. **Write `inc/func_db.sh`**: MySQL 8.0, create `tgui`+`tgui_log`, `tgui_user` (ALL on both), `tgui_repl` (REPLICATION SLAVE), copy `conf/mysql/*.cnf`, `mysql_config_editor` login-paths (adapt ichantio's expect pattern).
+4. **Write `inc/func_ha.sh`**: branch on `$ROLE` — master: ensure binlog/GTID on + `server-id=1`; slave: `read_only=ON`, `server-id=2`, `CHANGE MASTER TO` with `tgui_repl`; standalone: no-op.
+5. **Write `inc/func_python.sh`**: `python3 -m venv /opt/tgui_data/venv`, `venv/bin/pip install sqlalchemy alembic mysqlclient pexpect pyyaml pyotp gitpython requests`.
+6. **Write `inc/func_app.sh`**: `git clone <ditacacsgui> /opt/tacacsgui` (or copy), `composer install -d web/api` (uses committed lock), `config_example.php`→`config.php` (sed DB password from login-path).
+7. **Write `inc/func_tacplus.sh`**: extract vendored `tac_plus.tgz`, `cd tac_plus && ./configure --with-pcre2 && make && make install`, copy `conf/systemd/tac_plus.service`→`/etc/systemd/system/`, `systemctl daemon-reload enable --now tac_plus`.
+8. **Write `inc/func_web.sh`**: copy Angie vhosts→`/etc/angie/conf.d/`, PHP-FPM pool+ini→`/etc/php/8.2/fpm/...`, `angie -t`, reload; create SSL self-signed cert into `/opt/tgui_data/ssl/`.
+9. **Write `inc/func_sudoers.sh`** + **`func_finalize.sh`**: install sudoers (visudo -cf validate), create `/opt/tgui_data/*` + log dirs, first-boot health check (curl login, tac_plus status, mysql ping).
+10. **End-to-end test** on a clean Ubuntu 22.04/24.04 VM (master + a slave to prove HA). Then commit + push.
+
+**Remote:** `ditacacsgui` = `https://github.com/Vashork/ditacacsgui.git` (we push here). `origin` = upstream (DO NOT TOUCH).
+
+**Do NOT re-open:** code modernization (DONE), Angular (no sources, frozen), HA-vs-SQLITE (HA→MySQL 8.0), Nginx-vs-Angie (Angie), artifact strategy (ichantio base).
 3. **Pull ichantio's reference files** to adapt (NOT copy wholesale): `installer.sh`, `conf/www-data-sudo`, their MySQL/ntpsec/parser-filter snippets. Use as the base, rewrite for our stack (Angie not Apache, PHP 8.2 not 8.3, our Slim 4 code not their legacy code).
 4. **Write `install/inc/func_os.sh`** (Angie + PHP 8.2 PPA + ntpsec) — first real script, smallest surface.
 5. **Write `install/inc/func_db.sh`** (MySQL 8.0, two-DB split, replication user, `mysql_config_editor`).

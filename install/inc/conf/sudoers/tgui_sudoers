@@ -1,0 +1,12 @@
+# TacacsGUI sudoers (template). Install to /etc/sudoers.d/tacacsgui.
+# Validate with visudo -cf before activating; a bad file can lock out root.
+#
+# Grants www-data passwordless control of the tac_plus daemon
+# (/opt/tacacsgui/tac_plus.sh) and the app main script
+# (/opt/tacacsgui/main.sh). Command paths are listed without a trailing
+# wildcard; sudo permits any arguments to those exact paths.
+
+www-data ALL=(ALL) NOPASSWD: /opt/tacacsgui/tac_plus.sh
+www-data ALL=(ALL) NOPASSWD: /opt/tacacsgui/main.sh
+
+# These are the minimum privileges the web app needs. Do not broaden.

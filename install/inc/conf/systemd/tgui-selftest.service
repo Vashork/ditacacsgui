@@ -1,0 +1,9 @@
+[Unit]
+Description=TacacsGUI self-test (cron replacement)
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/php /opt/tacacsgui/web/api/self/app.php
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,18 @@
+# TacacsGUI MySQL 8.0 replication config. Drop into /etc/mysql/mysql.conf.d/98-tgui-replication.cnf.
+#
+# MASTER: this file enables binlog + GTID. server-id must be unique per node.
+# SLAVE: the installer additionally sets read_only=ON and runs CHANGE MASTER TO
+#        with the tgui_repl user. server-id must differ, e.g. master = 1, slave = 2.
+# The installer seds server-id to a unique value per node.
+# Only the `tgui` database is replicated; `tgui_log` is NOT (replicate-do-db below).
+
+[mysqld]
+server-id = 1
+log_bin = /var/log/mysql/mysql-bin.log
+binlog_format = ROW
+binlog_expire_logs_seconds = 604800
+sync_binlog = 1
+gtid_mode = ON
+enforce_gtid_consistency = ON
+skip_replication_start = 0
+replicate-do-db = tgui
