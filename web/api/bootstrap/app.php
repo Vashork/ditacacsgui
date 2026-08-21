@@ -114,6 +114,24 @@ $container->set('db', function () use ($haRole, $slavePsk) {
     $capsule->setAsGlobal();
     $capsule->bootEloquent();
 
+    // FIRST-RUN SCHEMA BOOTSTRAP (master/standalone only).
+    //
+    // On a brand-new MySQL database the tables do not exist yet, and the app's
+    // only schema-init endpoint (GET /apicheck/database/?update=1) is auth-gated,
+    // so the very first request could never create them -> POST /auth/signin/
+    // 500'd with "Table 'tgui.ldap_bind' doesn't exist". We bootstrap the full
+    // schema + default admin here, at boot, BEFORE any auth middleware runs.
+    //
+    // Idempotent: buildIfMissing() is a no-op once `api_users` exists, so this
+    // only does real work on the very first request to a fresh DB.
+    //
+    // SLAVE EXEMPT: a replica must NOT create tables locally (it is read_only and
+    // its schema is replicated from the master). Bootstrapping here would fail
+    // on read_only and would also diverge from the master's GTID stream.
+    if (!$isSlave) {
+        \tgui\SchemaBuilderMysql::buildIfMissing();
+    }
+
     return $capsule;
 });
 
