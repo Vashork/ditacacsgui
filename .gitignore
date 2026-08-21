@@ -1,6 +1,5 @@
 web/api/vendor
 web/api/config.php
-web/api/composer.lock
 # Env & local dev data (NEVER commit real secrets / dev DBs)
 web/api/.env
 web/api/storage/

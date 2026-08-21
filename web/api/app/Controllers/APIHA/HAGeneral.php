@@ -143,7 +143,8 @@ class HAGeneral extends Controller
   public static function checkActivation($uuid = [])
   {
     $requestParams=[
-      'url'=> 'https://tacacsgui.com/updates/',
+      // Phone-home to tacacsgui.com DISABLED (upstream dead). Local no-op URL.
+      'url'=> 'https://localhost/updates/',
       'guzzle_params'=>[
         'verify'=> false,
         'http_errors'=> false,

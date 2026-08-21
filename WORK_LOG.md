@@ -735,3 +735,77 @@ class SomeController extends Controller
 3. Update models and validation rules
 4. Run composer update and fix any issues
 5. Update this log after each batch of controllers completed
+
+---
+
+## Upstream Status (research, 2026-08-21)
+
+- **Upstream `tacacsgui/tacacsgui` is DEAD.** Last real commit on `master`: 2021-04-11 (`bad1573`, = our fork base). No tags, no releases after 0.9.83. Zero modernization — still Slim 3 + `illuminate/database ^5.5` + PHP 7.x caps.
+- **Project superseded** by closed/commercial successor **Taranac** (taranac.pro, not on GitHub). tacacsgui.com is a frozen archive.
+- **We are the de-facto maintained branch.** No upstream migration path exists to follow.
+
+## Analysis: `ichantio/tacacsgui-installation` (community fork, 2026-08-21)
+
+### What it is
+NOT a source fork. A **bare Shell installer** (100% bash) that provisions Ubuntu 22.04/24.04 and clones a *separate* companion repo `ichantio/tacacsgui` (a ~7-yr-stale upstream copy with targeted patches). Two-repo split:
+- `ichantio/tacacsgui-installation` = infra/installer
+- `ichantio/tacacsgui` = patched legacy source (keeps original under `original_src/` for diffing)
+
+### How they handle PHP 8.3 (the key trick)
+```
+composer update -d /opt/tacacsgui/web/api --ignore-platform-req=php
+composer install -d /opt/tacacsgui/web/api --ignore-platform-req=php
+```
+- composer.json **NOT modernized** — still pins Slim 3 + illuminate 5.5 + doctrine/dbal 2.7 + adldap2 9.1.
+- No polyfill, no custom PHP build, no version downgrade. Just force-install the OLD stack on 8.3 and hand-patch app code where PHP 8 strictness breaks it.
+- `audit: block-insecure: false` — explicitly opts out of composer vuln-blocking.
+- **No `composer.lock` committed** → non-reproducible vendor tree, drifts every install. (Operational risk.)
+
+### How they solved Angular
+**They did NOT solve it.** They ship the **compiled Angular 8 bundle as-is** (hashed `main.*.js`, `polyfills-es5`, etc.) with **no `package.json` / `angular.json` / frontend sources** in the repo — exactly like upstream and like our `web/`. The Angular GUI is a frozen compiled artifact in all three (upstream, ichantio, us). There is no Angular source to modernize; a real Angular v8→v17 migration would require the frontend source, which is not in any of these repos.
+
+### Service topology (single host, no Docker)
+- Ubuntu 22.04/24.04, PHP 8.3 (apt stock), **Apache 2.4 mod_php** (not Nginx), **MySQL 8.0** (`tgui`+`tgui_log`, `mysql_config_editor`), **tac_plus 2024 build** (PCRE2, systemd shim via `/etc/init.d`), `ntpsec`, Python 3.10/3.12.
+- GUI edits `/opt/tacacsgui/tac_plus.cfg`, restarts daemon via sudoers-exempt `tac_plus.sh` (www-data NOPASSWD).
+- Disable phone-home: `UPDATE api_settings SET update_url='https://localhost/updates', update_activated=0`.
+
+### Maturity
+1 maintainer, created 2024-09, last push ~2024-11 (source repo 1 commit 2026-04). Open issues: #4 HTTP 500 after install, #3 LDAP broken. Self-declared: only TACACS CRUD + local MFA + backup tested; **Update feature disabled by design**; "THE REST WERE NOT TESTED!".
+
+### ✅ Borrow (ideas)
+1. **`original_src/` diff** = free "what breaks on PHP 8" regression checklist for *this* codebase. Read before further work to target risk (reports, LDAP).
+2. **`mysql_config_editor` login-paths** over plaintext `config.php` DB password.
+3. **`ntpsec`** instead of `ntp` (gotcha on 24.04; upstream never handled it).
+4. **Vendor a pinned `tac_plus` 2024 build + PCRE2** instead of a distro/ancient package.
+5. **Disable phone-home** to `tacacsgui.com/updates` (dead endpoint, supply-chain footgun) — we still have it live: `APIDatabase.php:48`, `HAGeneral.php:146`, `APIUpdateCtrl.php:36`.
+6. **Parser pre-ingestion regex filters** (`acc-filter.txt`/`autho-filter.txt`/`authe-filter.txt`) — small real UX improvement, trivial to lift.
+7. **Two-DB split** (`tgui` + `tgui_log`) isolation — we already have this concept.
+
+### ❌ Do NOT adopt
+1. The `--ignore-platform-req=php` end-state (we're already past it via Slim 4 — don't regress).
+2. No `composer.lock` (we must commit ours — reproducible builds).
+3. Apache/mod_php (we can run Slim 4 on Nginx + PHP-FPM).
+4. Their "everything works" claim (LDAP broken, Update disabled, open 500).
+5. Treating it as a live upstream (9-mo stale, no CI/tests — reference only).
+
+## Install-layer rework — REQUIRED (concept NOT in question, but install layer must be rebuilt)
+
+Our code is now PHP 8.2 + Slim 4, but the official installer `tacacsgui/tgui_install` still targets **PHP 7.3 / Ubuntu 18.04 / upstart / MySQL 5.7**. **The new code cannot stand up under the old installer.** This is the real "concept rework" — and it is bounded bash work, not a redesign:
+
+| Blocker (in `tgui_install`) | Fix |
+|---|---|
+| `php7.3-*` via `ppa:ondrej/php` | `php8.2-*` (same PPA), `check_php()` regex, `a2enmod php8.2` |
+| **upstart job** `/etc/init/tac_plus.conf` (dead on 22.04+) | → native **systemd unit** |
+| `pip install` + `apt remove python3-pip` (broken, PEP 668) | → `python3 -m venv` + `venv/bin/pip` |
+| MySQL 5.7 `mysql_native_password` | → MySQL 8.0 syntax + `mysql_config_editor` |
+| `ntp` (absent on 24.04) | → `ntpsec` |
+| `python3-mysqldb` / `libmysqlclient-dev` (dead on 24.04) | → `default-libmysqlclient-dev` |
+| `python-software-properties` (18.04 name) | → `software-properties-common` |
+| tac_plus 2019 `DEVEL` tarball, `--with-pcre` | → 2024 build, `--with-pcre2` |
+
+**Decision: keep code concept (PHP 8.2 + Slim 4), rebuild install layer for Ubuntu 22.04/24.04 + PHP 8.2 + systemd + MySQL 8.0 + Nginx/PHP-FPM + committed `composer.lock`.** Do NOT copy ichantio's approach (old code + force-install).
+
+## Quick wins (this pass)
+- [ ] Commit `composer.lock` (remove from `.gitignore`) → reproducible builds (upstream & ichantio both lack it — we'd be ahead).
+- [ ] Disable phone-home `tacacsgui.com/updates` (default to localhost + `update_activated=0`).
+- [ ] Then: rebuild install layer (separate task).

@@ -44,9 +44,11 @@ class APIDatabase
   	],
   	'api_settings' =>
   	[
-  		'timezone' => ['string', '348'],
-  		'update_url' => ['string', 'https://tacacsgui.com/updates/'],
-  		'update_activated' => ['integer', '0'],
+   	'timezone' => ['string', '348'],
+   		// Phone-home to tacacsgui.com is DISABLED (upstream is dead, endpoint is gone).
+   		// Default to a local no-op URL; self-update is not used in this fork.
+   		'update_url' => ['string', 'https://localhost/updates/'],
+   		'update_activated' => ['integer', '0'],
   		'update_signin' => ['integer', '1'],
   		'ntp_list' => ['string', ''],
   		'api_logging_max_entries' => ['integer', 500],
