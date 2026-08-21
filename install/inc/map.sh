@@ -22,7 +22,10 @@ TAC_PLUS_CFG="${TGUI_ROOT}/tac_plus.cfg"
 TAC_PLUS_PID="/var/run/tac_plus.pid"
 
 PHP_VERSION="8.2"
-PHP_FPM_SOCK="/run/php/php${PHP_VERSION}-fpm.sock"
+# Dedicated FPM socket for the tgui pool (NOT the stock php8.2-fpm.sock, which
+# is owned by the distro "www" pool). Keep in sync with tgui-fpm-pool.conf
+# (listen) and the Angie vhosts (fastcgi_pass).
+PHP_FPM_SOCK="/run/php/php${PHP_VERSION}-tgui.sock"
 
 # --- Data subdirectories (created by installer) -----------------------------
 TGUI_DATA_SSL="${TGUI_DATA}/ssl"

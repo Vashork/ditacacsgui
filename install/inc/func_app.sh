@@ -65,13 +65,20 @@ app_env() {
         echo ".env already present; applying production overrides to it"
     fi
 
-    # Always (re)apply the production values. JWT_SECRET is only regenerated
-    # when we created the file (so re-runs don't invalidate existing tokens);
-    # DB creds / driver / URL are idempotent and safe to re-assert every run.
-    local jwt_secret
-    if [ "${created}" -eq 1 ]; then
+    # Always (re)apply the production values.
+    #
+    # JWT_SECRET: the shipped dev .env carries the placeholder
+    # "your_jwt_secret_key_change_this". A placeholder (or empty) JWT secret is
+    # a real security problem, so we replace it with a random value the first
+    # time we see it. We do NOT regenerate on every re-run (that would invalidate
+    # all outstanding tokens); we only fix a placeholder/empty value.
+    local cur_jwt
+    cur_jwt=$(grep -E '^JWT_SECRET=' "${TGUI_API_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d ' \r')
+    if [ "${created}" -eq 1 ] || [ -z "$cur_jwt" ] || [ "$cur_jwt" = "your_jwt_secret_key_change_this" ]; then
+        local jwt_secret
         jwt_secret=$(openssl rand -hex 32)
         sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${jwt_secret}|" "${TGUI_API_DIR}/.env"
+        echo "JWT_SECRET set (random 32-byte hex)"
     fi
 
     # Force MySQL (never sqlite) for production/HA.
