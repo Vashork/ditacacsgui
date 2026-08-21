@@ -43,7 +43,7 @@ install/
 │       ├── mysql/        # tgui.cnf, replication.cnf
 │       ├── php/          # tgui-fpm-pool.conf, 80-tacacsgui.ini
 │       └── sudoers/      # www-data-sudo, tgui_sudoers
-└── tac_plus.tgz          # (TODO) vendored 2024 build (from ichantio) — NOT yet committed
+└── tac_plus.tgz          # vendored 2024 PCRE2 build (from ichantio) — committed
 ```
 
 ## Design decisions
@@ -54,11 +54,10 @@ install/
 - **Based on ichantio artifacts**: tac_plus.tgz (2024-09-11, PCRE2), mysql_config_editor pattern, ntpsec choice, parser filters — adapted, not copied.
 
 ## REMAINING (before this can run on a real box)
-- **Vendor `install/tac_plus.tgz`** (download from ichantio, ~8.6 MB, PCRE2 2024-09-11 build). Not yet committed (binary).
 - **End-to-end install test on a clean Ubuntu 22.04/24.04 VM** — master + a slave to prove HA replication (GTID, `Slave_IO/SQL_Running=Yes`).
 - Confirm the distro's Angie service name (`angie` vs `nginx`) and the `angie` apt package availability on 22.04/24.04 during the VM test.
 
-Everything else (orchestrator, all 9 `func_*.sh`, all config templates) is implemented.
+Everything else is implemented: orchestrator, all 9 `func_*.sh`, all config templates, and the vendored `tac_plus.tgz` (2024 PCRE2 build).
 
 ## References
 - ichantio installer: https://github.com/ichantio/tacacsgui-installation

@@ -930,9 +930,10 @@ Bug fixed in batch 1: `TGUI_MYSQL_ROOTPASS` generation moved out of the "mysql n
 
 **Where we are:** `install/` is **functionally complete in code** — orchestrator + all 9 `func_*.sh` + all config templates, committed and pushed (HEAD `34d0995`). NOT yet run on a real box.
 
-**Remaining work (only 2 items):**
-1. **Vendor `install/tac_plus.tgz`** — download from `ichantio/tacacsgui-installation` root (~8.6 MB, PCRE2 2024-09-11 build), verify it's a valid gzip extracting to a `tac_plus/` dir with a `configure` script. Commit it (or git-lfs). Until this exists, `tacplus_build` will (correctly) refuse with "vendor install/tac_plus.tgz first".
-2. **End-to-end VM test** on a clean Ubuntu 22.04/24.04: run `sudo ./install.sh --role master` on box A, `sudo TGUI_HA_MASTER_IP=<A> ./install.sh --role slave` on box B, then verify: Angie serving, PHP 8.2-FPM up, MySQL 8.0 up, login works, tac_plus built+running, and on B `SHOW SLAVE STATUS` → `Slave_IO_Running: Yes`, `Slave_SQL_Running: Yes`. Fix whatever the VM surfaces. Confirm the Angie apt package name + service name during this test.
+**Remaining work (1 item):**
+1. **End-to-end VM test** on a clean Ubuntu 22.04/24.04: run `sudo ./install.sh --role master` on box A, `sudo TGUI_HA_MASTER_IP=<A> ./install.sh --role slave` on box B, then verify: Angie serving, PHP 8.2-FPM up, MySQL 8.0 up, login works, tac_plus built+running, and on B `SHOW SLAVE STATUS` → `Slave_IO_Running: Yes`, `Slave_SQL_Running: Yes`. Fix whatever the VM surfaces. Confirm the Angie apt package name + service name during this test.
+
+**DONE (this session, after the 9 funcs):** `install/tac_plus.tgz` vendored + committed (HEAD `de23cee`). Verified: valid gzip (1f 8b), 4.56 MB, 573 entries, extracts to `tac_plus/` with `tac_plus/configure` that supports the `pcre2` option — so `func_tacplus.sh`'s `./configure --with-pcre2 && make && make install` is correct. `tacplus_build` is now unblocked.
 
 **Do NOT re-open:** code modernization (DONE), Angular (no sources), HA-vs-SQLITE (HA→MySQL 8.0), Nginx-vs-Angie (Angie), artifact strategy (ichantio base), session limit (4 = main + 3 agents, batches of 2 agents).
 
