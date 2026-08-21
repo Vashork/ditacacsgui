@@ -962,7 +962,32 @@ Bug fixed in batch 1: `TGUI_MYSQL_ROOTPASS` generation moved out of the "mysql n
 
 **Remote:** `ditacacsgui` = `https://github.com/Vashork/ditacacsgui.git` (working repo, we push here). `origin` = `https://github.com/tacacsgui/tacacsgui.git` (upstream, DO NOT TOUCH).
 
-**Current HEAD:** `6e7155a` (both quick wins committed + pushed).
+**Current HEAD:** `c6e80fa` (install: 7 real bugs fixed by the real WSL e2e test; pushed to ditacacsgui).
+
+## STATUS UPDATE — 2026-08-21: REAL e2e TEST PASSED on WSL Ubuntu 24.04
+
+The full installer ran end-to-end on a real WSL2 Ubuntu 24.04.4 (Noble) VM
+(native systemd). **All 9 steps completed. The app serves the Angular SPA (HTTP 200)
+and browser → Angie → PHP-FPM → Slim is proven working.** Services active:
+angie 1.12.1, php8.2-fpm 8.2.33, mysql 8.0.46, ntpsec; tac_plus built + installed.
+
+The test found + fixed **7 real installer bugs** (commit `c6e80fa`) that a stubbed
+dry-run could never catch — see the Karpaty Wiki `install-layer.md` (bugs table) and
+`wsl-test-env.md` (real-test results + WSL gotchas).
+
+**Remaining gap (APP layer, NOT installer):** on a fresh MySQL DB the app cannot
+bootstrap its own schema before first login — its `getCheckDatabase` init endpoint
+(`web/api/app/Controllers/APIChecker/APICheckerCtrl.php`) is auth-gated and there is
+no bootstrap token on an empty DB. After a clean install, `POST /api/auth/signin/`
+500s with `Table 'tgui.ldap_bind' doesn't exist` until the schema is seeded. The
+SQLite dev path auto-builds its schema in `web/api/bootstrap/app.php`, but the MySQL
+branch has no equivalent. **Next app fix:** add a MySQL schema builder + seed to
+`bootstrap/app.php` (mirror the SQLite first-run build) OR ship a MySQL schema dump
+the installer loads after `db_provision`.
+
+**Next milestones:** (1) fix the app-layer MySQL schema bootstrap; (2) HA test
+(2nd node, `TGUI_HA_MASTER_IP=… ./install.sh --role slave`, verify `SHOW SLAVE
+STATUS`); (3) Docker packaging milestone.
 
 **Do NOT re-open:** code modernization (Phase 1, DONE), Angular (no sources, frozen bundle — out of scope), HA-vs-SQLITE (HA confirmed, MySQL 8.0), Nginx-vs-Angie (Angie confirmed), artifact strategy (ichantio base confirmed). These are all decided.
 
