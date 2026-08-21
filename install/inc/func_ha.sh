@@ -75,7 +75,8 @@ ha_slave() {
   echo "HA: CHANGE MASTER TO ${TGUI_HA_MASTER_IP} + START SLAVE issued"
 
   # Verify replication threads are running.
-  mysql --login-path=root -e "SHOW SLAVE STATUS\G" | grep -E 'Slave_IO_Running|Slave_SQL_Running|Last_IO_Error'
+  # grep || true: a no-match (e.g. master briefly unreachable) must not abort under set -o pipefail.
+  mysql --login-path=root -e "SHOW SLAVE STATUS\G" 2>/dev/null | grep -E 'Slave_IO_Running|Slave_SQL_Running|Last_IO_Error' || true
   echo "HA: slave configured (master=${TGUI_HA_MASTER_IP})"
 }
 

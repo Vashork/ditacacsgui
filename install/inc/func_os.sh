@@ -72,6 +72,27 @@ os_install() {
     # Web server: Angie (Nginx-compatible fork).
     # The apt package is 'angie' across the supported releases; a post-install
     # 'angie -v' check should confirm it is present and runnable.
+
+    # Angie is NOT in default Ubuntu repos; add the vendor apt repo + GPG key first.
+    # Without this, 'apt-get install angie' fails on a stock VM with
+    # "Unable to locate package angie".
+    #
+    # 1) GPG key: skip re-download if it already exists (idempotent).
+    if [ ! -f /etc/apt/trusted.gpg.d/angie-signing.gpg ]; then
+        curl -fsSL -o /etc/apt/trusted.gpg.d/angie-signing.gpg https://angie.software/keys/angie-signing.gpg
+    fi
+
+    # 2) apt repo: skip re-echo if the list file already exists (idempotent).
+    if [ ! -f /etc/apt/sources.list.d/angie.list ]; then
+        local codename
+        codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        echo "deb https://download.angie.software/angie/ubuntu/ ${codename} main" > /etc/apt/sources.list.d/angie.list
+    fi
+
+    # 3) Re-index so apt picks up the new repo before we install from it.
+    apt-get update -y
+
+    # 4) Now the angie package resolves from the vendor repo.
     apt-get install -y angie
 
     # ntpsec log directory (the ntpsec package itself is installed above).

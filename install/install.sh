@@ -46,12 +46,20 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# --- Source step libraries (TODO: implement each) -----------------------------
-# Each func_*.sh defines shell functions; install.sh calls them in order below.
-# They are guarded so a missing file fails loudly (set -e) rather than silently.
-for f in "${SCRIPT_DIR}"/inc/func_*.sh; do
-  [[ -f "$f" ]] && source "$f"
+# --- Source step libraries ------------------------------------------------------
+# Each func_*.sh defines shell functions; install.sh calls them in the order
+# below. If the glob matches nothing (no func files at all), fail loudly rather
+# than abort cryptically under set -e on the trailing && of the loop body.
+shopt -s nullglob
+_func_files=("${SCRIPT_DIR}"/inc/func_*.sh)
+if [[ ${#_func_files[@]} -eq 0 ]]; then
+  echo "ERROR: no inc/func_*.sh step libraries found in ${SCRIPT_DIR}/inc" >&2
+  exit 1
+fi
+for f in "${_func_files[@]}"; do
+  source "$f"
 done
+shopt -u nullglob
 
 log() { printf '\n\033[1;32m== %s ==\033[0m\n' "$*"; }
 
