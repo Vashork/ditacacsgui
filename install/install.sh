@@ -58,8 +58,8 @@ log() { printf '\n\033[1;32m== %s ==\033[0m\n' "$*"; }
 # --- Step functions (implement in inc/func_*.sh) --------------------------------
 # The body of each is a TODO stub so the skeleton is runnable and shows the
 # intended order. Replace the stub bodies with real implementations.
-step_os()        { log "OS: apt, Angie, PHP ${PHP_VERSION} PPA, ntpsec";        echo "TODO: func_os.sh"; }
-step_db()        { log "DB: MySQL 8.0, ${DB_APP}+${DB_LOG}, ${DB_USER}, repl";   echo "TODO: func_db.sh"; }
+step_os()        { log "OS: preflight + apt, Angie, PHP ${PHP_VERSION} PPA, ntpsec"; os_preflight; os_install; }
+step_db()        { log "DB: MySQL 8.0, ${DB_APP}+${DB_LOG}, ${DB_USER}, repl";   db_install; db_provision; db_loginpaths; }
 step_ha()        { log "HA: role=${ROLE} (binlog, server-id, CHANGE MASTER TO)"; echo "TODO: func_ha.sh"; }
 step_python()    { log "Python: venv + pip deps (parser)";                        echo "TODO: func_python.sh"; }
 step_app()       { log "App: git clone, composer install (lock), config";         echo "TODO: func_app.sh"; }
