@@ -60,8 +60,8 @@ log() { printf '\n\033[1;32m== %s ==\033[0m\n' "$*"; }
 # intended order. Replace the stub bodies with real implementations.
 step_os()        { log "OS: preflight + apt, Angie, PHP ${PHP_VERSION} PPA, ntpsec"; os_preflight; os_install; }
 step_db()        { log "DB: MySQL 8.0, ${DB_APP}+${DB_LOG}, ${DB_USER}, repl";   db_install; db_provision; db_loginpaths; }
-step_ha()        { log "HA: role=${ROLE} (binlog, server-id, CHANGE MASTER TO)"; echo "TODO: func_ha.sh"; }
-step_python()    { log "Python: venv + pip deps (parser)";                        echo "TODO: func_python.sh"; }
+step_ha()        { log "HA: role=${ROLE} (binlog, server-id, CHANGE MASTER TO)"; ha_setup; }
+step_python()    { log "Python: venv + pip deps (parser)";                        python_setup; }
 step_app()       { log "App: git clone, composer install (lock), config";         echo "TODO: func_app.sh"; }
 step_tacplus()   { log "tac_plus: build 2024 + PCRE2, install systemd unit";      echo "TODO: func_tacplus.sh"; }
 step_web()       { log "Web: Angie vhost + PHP-FPM pool/ini, activate";           echo "TODO: func_web.sh"; }
