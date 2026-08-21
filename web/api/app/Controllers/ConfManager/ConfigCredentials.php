@@ -1,15 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\ConfManager;
 
 use tgui\Models\Conf_Credentials;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
 class ConfigCredentials extends Controller
 {
 ################################################
-	public function postAdd($req,$res)
+	public function postAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -21,7 +26,7 @@ class ConfigCredentials extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -29,36 +34,36 @@ class ConfigCredentials extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\Conf_Credentials' ),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$credential = Conf_Credentials::create($allParams);
 
 		$data['credential'] = 1;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getEdit($req,$res)
+	public function getEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -70,7 +75,7 @@ class ConfigCredentials extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -78,32 +83,32 @@ class ConfigCredentials extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'id' => v::numeric()
+		$validation = $this->validator->validate($request, [
+			'id' => v::numericVal()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['credential'] = Conf_Credentials::where('id', $req->getParam('id'))->first()->toArray();
+		$data['credential'] = Conf_Credentials::where('id', $this->param($request, 'id'))->first()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-////////////////////////////////////////////////////////////
-	public function postEdit($req,$res)
+	////////////////////////////////////////////////////////////
+	public function postEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -115,7 +120,7 @@ class ConfigCredentials extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -123,37 +128,37 @@ class ConfigCredentials extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'id' => v::numeric(),
-			'name' => v::when( v::nullType() , v::alwaysValid(), v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\Conf_Credentials', $req->getParam('id') ) ),
+		$validation = $this->validator->validate($request, [
+			'id' => v::numericVal(),
+			'name' => v::when( v::nullType() , v::alwaysValid(), v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\Conf_Credentials', $this->param($request, 'id') ) ),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
-		$cmd = Conf_Credentials::where( 'id', $req->getParam('id') )->update($allParams);
+		$cmd = Conf_Credentials::where( 'id', $this->param($request, 'id') )->update($allParams);
 
 		$data['save'] = 1;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	///////////////////////////////////////////////////////////
-	public function postDel($req,$res)
+	public function postDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -165,7 +170,7 @@ class ConfigCredentials extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -173,33 +178,33 @@ class ConfigCredentials extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty(),//->theSameNameUsed( '\tgui\Models\Conf_Credentials' ),
-			'id' => v::numeric()
+			'id' => v::numericVal()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['result'] = Conf_Credentials::where( 'id', $req->getParam('id') )->delete();
+		$data['result'] = Conf_Credentials::where( 'id', $this->param($request, 'id') )->delete();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-  public function postDatatables($req,$res)
+  public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -211,7 +216,7 @@ class ConfigCredentials extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
@@ -223,17 +228,17 @@ class ConfigCredentials extends Controller
       $data['data'] = [];
       $data['recordsTotal'] = 0;
       $data['recordsFiltered'] = 0;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $params = $req->getParams(); //Get ALL parameters form Datatables
+    $params = $this->params($request); //Get ALL parameters form Datatables
 
     $columns = []; //$this->APICheckerCtrl->getTableTitles('confM_credentials'); //Array of all columnes that will used
     array_unshift( $columns, 'confM_credentials.*' );
     array_push( $columns,
-	 	$this->db::raw('(SELECT COUNT(*) FROM confM_queries WHERE credential = confM_credentials.id) as ref_d'),
-	 	$this->db::raw('(SELECT COUNT(*) FROM confM_devices WHERE credential = confM_credentials.id) as ref_q') );
+   	$this->db::raw('(SELECT COUNT(*) FROM confM_queries WHERE credential = confM_credentials.id) as ref_d'),
+   	$this->db::raw('(SELECT COUNT(*) FROM confM_devices WHERE credential = confM_credentials.id) as ref_q') );
 		if (($key = array_search('name', $columns)) !== false) {
     	unset($columns[$key]);
 			array_push( $columns, 'confM_credentials.name as name');
@@ -263,7 +268,7 @@ class ConfigCredentials extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 
     // $data['columns'] = $columns;
     // $queries = [];
@@ -340,10 +345,10 @@ class ConfigCredentials extends Controller
   	// 	//Some additional parameters for Datatables
   	// 	$data['draw']=intval( $params['draw'] );
 		//
-  	// 	return $res -> withStatus(200) -> write(json_encode($data));
+  	// 	return $this->json($response, $data, 200);
   }
 
-	public function getList($req,$res)
+	public function getList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -355,30 +360,30 @@ class ConfigCredentials extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(3, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = Conf_Credentials::select(['id','name AS text'])->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = Conf_Credentials::select(['id','name as text']);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -387,7 +392,7 @@ class ConfigCredentials extends Controller
 
 		$data['results']=$query->orderBy('name')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 }//END OF CLASS//

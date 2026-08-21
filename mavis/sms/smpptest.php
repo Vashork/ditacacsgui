@@ -1,4 +1,5 @@
-<?php 
+<?php
+declare(strict_types=1);
 
 if (empty($argv[1]) OR empty($argv[2]) OR empty($argv[3]) OR empty($argv[4]) OR empty($argv[5]) OR empty($argv[6]) OR empty($argv[7]) OR empty($argv[8]) ) die("Some of arguments did not set! \n");
 

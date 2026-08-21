@@ -18,7 +18,13 @@ class Validator
 		$this->messages = [];
 		foreach ($rules as $field => $rule) {
 			$this->error_messages[$field] = null;
-			$item = (is_array($request)) ? $request[$field] : $request->getParam($field);
+			if (is_array($request)) {
+				$item = $request[$field] ?? null;
+			} else {
+				// PSR-7 ServerRequest (Slim 4): read from parsed body, then query params
+				$all = $request->getParsedBody() ?? $request->getQueryParams() ?? [];
+				$item = $all[$field] ?? null;
+			}
 			try {
 				$rule->setName(ucfirst($field))->assert($item);
 

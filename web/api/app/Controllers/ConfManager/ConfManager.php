@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\ConfManager;
 
 use tgui\Controllers\Controller;
@@ -12,11 +14,14 @@ use tgui\Models\Conf_Devices;
 use tgui\Services\CMDRun\CMDRun as CMDRun;
 use Symfony\Component\Yaml\Yaml;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
 class ConfManager extends Controller
 {
 	private $GIT_PATH = '/opt/tacacsgui/plugins/ConfigManager/cm_git.sh';
 ################################################
-	public function getInfo($req,$res)
+	public function getInfo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -28,7 +33,7 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -50,10 +55,10 @@ class ConfManager extends Controller
 				break;
 		}
 		$data['info'] = $message;
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	#########	POST Add New User	#########
-	public function postToggle($req,$res)
+	public function postToggle(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -65,17 +70,17 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(7))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		switch ($req->getParam('action')) {
+		switch ($this->param($request, 'action')) {
 			case 'start':
 				$data['info'] = Helper::CmInfoStatus();
 				$this->createConfig();
@@ -113,11 +118,11 @@ class ConfManager extends Controller
 				break;
 		}
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User	###############END###########
 #################
-	public function postDel($req,$res)
+	public function postDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -129,24 +134,24 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$filename = $req->getParam('name');
-		$group = $req->getParam('group');
+		$filename = $this->param($request, 'name');
+		$group = $this->param($request, 'group');
 		if ( $group ) $filename = $group.'/'.$filename;
 		$request_attr = '--delete='.$filename;
 		$data['result'] = CMDRun::init()->
 			setCmd(MAINSCRIPT)->
 			setAttr(['run', 'cmd', $this->GIT_PATH, $request_attr])->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	// public function postTacgui($req,$res)
 	// {
@@ -209,7 +214,7 @@ class ConfManager extends Controller
 	//
 	// 	return $res -> withStatus(200) -> write(json_encode($data));
 	// }
-	public function postTacguiAAA($req,$res)
+	public function postTacguiAAA(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -221,16 +226,16 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'ip' => v::NotEmpty()->ip(),
 			'date_a' => v::NotEmpty()->date(),
 			'date_b' => v::NotEmpty()->date(),
@@ -240,15 +245,15 @@ class ConfManager extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$ip = $req->getParam('ip');
-		$uname = $req->getParam('username');
+		$ip = $this->param($request, 'ip');
+		$uname = $this->param($request, 'username');
 		if ($uname == 'undefined') $uname = '';
-		$section = $req->getParam('section');
-		$date_start = date('Y-m-d H:i:s', min( strtotime($req->getParam('date_a')), strtotime($req->getParam('date_b')) ) );
-		$date_end = date('Y-m-d H:i:s', max( strtotime($req->getParam('date_a')), strtotime($req->getParam('date_b')) ) );
+		$section = $this->param($request, 'section');
+		$date_start = date('Y-m-d H:i:s', min( strtotime($this->param($request, 'date_a')), strtotime($this->param($request, 'date_b')) ) );
+		$date_end = date('Y-m-d H:i:s', max( strtotime($this->param($request, 'date_a')), strtotime($this->param($request, 'date_b')) ) );
 
 		$table = 'tac_log_authentication';
 		$select = ['nac','date','action'];
@@ -280,9 +285,9 @@ class ConfManager extends Controller
 				break;
 		}
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-	public function postDiffBrief($req,$res)
+	public function postDiffBrief(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -294,18 +299,18 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'type' => v::oneOf( v::equals('brief'), v::equals('full'), v::equals('preview'), v::equals('native') ),
-			'context' => v::numeric(),
+			'context' => v::numericVal(),
 			'hash_a' => v::alnum(),
 			'hash_b' => v::alnum(),
 		]);
@@ -313,26 +318,26 @@ class ConfManager extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$filename = preg_replace('/^\//', '', $req->getParam('filename') );
+		$filename = preg_replace('/^\//', '', $this->param($request, 'filename') );
 		// $data['test__'] = $filename;
 		// /opt/tacacsgui/plugins/ConfigManager/cm_git.sh '--show=1a2819b:/123123/router_12__15_17'
 
 		$data['native'] = '';
 		$data['show'] = '';
 		$data['test23'] =true;
-		if ( $req->getParam('type') == 'preview') {
+		if ( $this->param($request, 'type') == 'preview') {
 			$data['show'] = CMDRun::init()->
 				setCmd(MAINSCRIPT)->
 				setAttr(
-					['run','cmd',$this->GIT_PATH,'--show='.$req->getParam('hash_a').':'.$filename])->
+					['run','cmd',$this->GIT_PATH,'--show='.$this->param($request, 'hash_a').':'.$filename])->
 				get();
 
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
-		if ( $req->getParam('type') == 'native') {
+		if ( $this->param($request, 'type') == 'native') {
 			$data['native'] = CMDRun::init()->
 				setCmd(MAINSCRIPT)->
 				setAttr(
@@ -340,35 +345,35 @@ class ConfManager extends Controller
 					'run',
 					'cmd',
 					$this->GIT_PATH,
-					'--context='.$req->getParam('context'),
+					'--context='.$this->param($request, 'context'),
 					'--file-b='. ( $filename ),
-					'--diff='.$req->getParam('hash_b').':'.$req->getParam('hash_a').':'.$filename
+					'--diff='.$this->param($request, 'hash_b').':'.$this->param($request, 'hash_a').':'.$filename
 					])->
 				get();
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$request = [
+		$diffRequest = [
 			'run',
 			'cmd',
 			$this->GIT_PATH,
-			'--context='.$req->getParam('context'),
+			'--context='.$this->param($request, 'context'),
 			'--file-b='. ( $filename ),
-			'--full-file='. ( ($req->getParam('type') == 'full') ? '1' : '0' ),
-			'--diff='.$req->getParam('hash_b').':'.$req->getParam('hash_a').':'.$filename
+			'--full-file='. ( ($this->param($request, 'type') == 'full') ? '1' : '0' ),
+			'--diff='.$this->param($request, 'hash_b').':'.$this->param($request, 'hash_a').':'.$filename
 		];
-		//$req->getParam('filename_a');
+		//$this->param($request, 'filename_a');
 
 		$diff_cmd = CMDRun::init()->
 			setCmd(MAINSCRIPT)->
-			setAttr($request);
+			setAttr($diffRequest);
 		$data['cmd_diff'] = $diff_cmd->showCMD();
 		$data['diff'] = false;
-		#return $res -> withStatus(200) -> write(json_encode($data));
+		#return $this->json($response, $data, 200);
 		$diff_full = $diff_cmd->get();
 		if ( empty( $diff_full ) ){
 
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$diff_full = explode( PHP_EOL, $diff_full );
 
@@ -592,11 +597,11 @@ class ConfManager extends Controller
 
 		}
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User	###############END###########
 #################
-	public function postTacacs($req,$res)
+	public function postTacacs(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -608,17 +613,17 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$filename = end(explode( '/', preg_replace('/^\//', '', $req->getParam('filename') ) ));
+		$filename = end(explode( '/', preg_replace('/^\//', '', $this->param($request, 'filename') ) ));
 		$data['info'] = false;
 		list($dev_id, $q_id) = explode( '_', explode('__', $filename)[1] );
 		//$data['info1'] = $dev_id;
@@ -628,11 +633,11 @@ class ConfManager extends Controller
 			select(['cd.*','addr.address as ipaddress','td.name as tacdevice'])->
 			where('cd.id',$dev_id)->first();
 		if (!$dev)
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		if (!empty($dev->ipaddress)) $dev->ipaddress = explode('/', $dev->ipaddress)[0];
 		$ip = $dev->ipaddress;
-		$date_start = date('Y-m-d H:i:s', min( strtotime($req->getParam('date_a')), strtotime($req->getParam('date_b')) ) );
-		$date_end = date('Y-m-d H:i:s', max( strtotime($req->getParam('date_a')), strtotime($req->getParam('date_b')) ) );
+		$date_start = date('Y-m-d H:i:s', min( strtotime($this->param($request, 'date_a')), strtotime($this->param($request, 'date_b')) ) );
+		$date_end = date('Y-m-d H:i:s', max( strtotime($this->param($request, 'date_a')), strtotime($this->param($request, 'date_b')) ) );
 
 		$data['users'] = $this->db::connection('logging')->select( $this->db::raw("
 			SELECT username, sum(authe) as authe, sum(autho) as autho, sum(acc) as acc FROM (
@@ -656,9 +661,9 @@ class ConfManager extends Controller
 			) AS total_u GROUP BY username
 		"));
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 }
-	public function getDiffList($req,$res)
+	public function getDiffList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -670,30 +675,30 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['results'] = [];
-		$params = $req->getParams();
+		$params = $this->params($request);
 		$params['extra'] = json_decode($params['extra']);
 		$data['isFile'] = file_exists('/opt/tgui_data/confManager/configs'.$params['extra']->file);
 		$data['path'] = '/opt/tgui_data/confManager/configs'.$params['extra']->file;
 		$params['extra']->file = preg_replace('/^\//', '', $params['extra']->file);
 		if (!$data['isFile'] OR empty($params['extra']->file)){
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$cmd = CMDRun::init()->
 			setCMD($this->GIT_PATH)->setAttr('--commit-list='.$params['extra']->file);
 		$data['cmd'] = $cmd->showCMD();
 		$tempData = $cmd->get();
 		if (empty(trim($tempData))){
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$tempData = explode(PHP_EOL, $tempData);
 		for ($i=0; $i < count($tempData); $i++) {
@@ -709,13 +714,13 @@ class ConfManager extends Controller
 
 		$data['timezone'] = date_default_timezone_get();
 		$data['test'] = $test;
-		// $page = $req->getParam('page');
+		// $page = $this->param($request, 'page');
 		// $start = 1 + ( ($page - 1) * 10 );
 		// $end = $page * 10;
 		//
 		// $cmd = CMDRun::init()->
 		// 	setCmd(MAINSCRIPT)->
-		// 	setAttr(['run', 'cmd', $this->GIT_PATH, '--commit-start='.$start, '--commit-end='.$end,'--commit-list='.$req->getParam('extra')['filename']]);
+		// 	setAttr(['run', 'cmd', $this->GIT_PATH, '--commit-start='.$start, '--commit-end='.$end,'--commit-list='.$this->param($request, 'extra')['filename']]);
 		// $data['cmd'] = $cmd->showCMD();
 		//
 		// $commit_list = $cmd->get();
@@ -733,9 +738,9 @@ class ConfManager extends Controller
 		//
 		// $data['pagination'] = ['more'=> count($data['results']) == 10];
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 }
-	public function postMore($req,$res)
+	public function postMore(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -747,28 +752,28 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		//$data['rowId'] = $req->getParam('rowId');
-		$filename = $req->getParam('name');
-		$group = $req->getParam('group');
+		//$data['rowId'] = $this->param($request, 'rowId');
+		$filename = $this->param($request, 'name');
+		$group = $this->param($request, 'group');
 		if ( $group ) $filename = $group.'/'.$filename;
 		$request_attr = ['--info='.$filename];
 		$data['more'] = explode(' ', CMDRun::init()->
 			setCmd($this->GIT_PATH)->
 			setAttr($request_attr)->get() );
 		if ( isset($data['more'][1]) ) $data['more'][1] = date( 'Y-m-d H:i:s', $data['more'][1]);
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 }
-	public function getCron($req,$res)
+	public function getCron(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -780,13 +785,13 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$cron = [
@@ -804,14 +809,14 @@ class ConfManager extends Controller
 			file_put_contents( '/opt/tgui_data/confManager/cron.yaml', $yaml);
 			$data['file'] = 'creating';
 			$data['cron'] = $cron;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$data['file'] = 'created';
 		$data['cron'] = Yaml::parseFile('/opt/tgui_data/confManager/cron.yaml');
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 }
-	public function postCron($req,$res)
+	public function postCron(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -823,26 +828,26 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		if ( !isset($allParams['cm']) ) $allParams['cm'] = [];
 		if ( !isset($allParams['git']) ) $allParams['git'] = [];
 		$this->createConfig();
 		$data['crontab'] = $this->startCron($allParams);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 }
 
 
-	public function getDir($req,$res)
+	public function getDir(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -854,17 +859,17 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$cmd = CMDRun::init()->setCmd('/opt/tacacsgui/plugins/ConfigManager/cm_ls.sh')->
-			setAttr('--dir-list'.'='.$req->getParam('path'));
+			setAttr('--dir-list'.'='.$this->param($request, 'path'));
 		$data['_cmd'] = $cmd->showCMD();
 		$list = explode(PHP_EOL, $cmd->get());
 		$list_out = [];
@@ -872,7 +877,7 @@ class ConfManager extends Controller
 		for ($i=0; $i < count($list); $i++) {
 			if (empty(trim($list[$i]))) continue;
 			$list_out[]= [
-				'name' => preg_replace('/\/$/', '', str_replace($req->getParam('path'), '', $list[$i]) ),
+				'name' => preg_replace('/\/$/', '', str_replace($this->param($request, 'path'), '', $list[$i]) ),
 				'path' => $list[$i],
 				'id' => $list[$i],
 				'partial_path' => array_slice( explode('/', $list[$i]), 0, -1 ),
@@ -881,10 +886,10 @@ class ConfManager extends Controller
 		}
 		$data['list'] = $list_out;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getDirExploer($req,$res)
+	public function getDirExploer(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -896,27 +901,27 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$cmd = CMDRun::init()->setCmd('/opt/tacacsgui/plugins/ConfigManager/cm_ls.sh')->
-			setAttr('--dir-exploer'.'='.$req->getParam('path'));
+			setAttr('--dir-exploer'.'='.$this->param($request, 'path'));
 		$data['_cmd'] = $cmd->showCMD();
 		$list = explode(PHP_EOL, $cmd->get());
 		$list_out = [];
 		if (count($list) == 1 and empty($list[0])) $list = [];
 		$data['list'] = $list;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function postDirAdd($req,$res)
+	public function postDirAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -928,16 +933,16 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'fname' => v::noWhitespace()->notEmpty(),
 			'parent' => v::noWhitespace()->notEmpty()->directory(),
 			'path' => v::noWhitespace()->notEmpty()->not( v::directory())->not(v::file() ),
@@ -946,15 +951,15 @@ class ConfManager extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['status'] = mkdir($req->getParam('path'));
+		$data['status'] = mkdir($this->param($request, 'path'));
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function postDirMove($req,$res)
+	public function postDirMove(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -966,16 +971,16 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'fname' => v::noWhitespace()->notEmpty(),
 			'path_old' => v::noWhitespace()->notEmpty()->oneOf( v::directory())->not(v::file() ),
 			'path' => v::noWhitespace()->notEmpty()->not( v::directory())->not(v::file() ),
@@ -984,15 +989,15 @@ class ConfManager extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['status'] = rename($req->getParam('path_old'), $req->getParam('path'));
+		$data['status'] = rename($this->param($request, 'path_old'), $this->param($request, 'path'));
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function postDirDel($req,$res)
+	public function postDirDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -1004,29 +1009,29 @@ class ConfManager extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'path' => v::noWhitespace()->notEmpty()->oneOf( v::directory(), v::file() ),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['status'] = CMDRun::init()->setCmd('rm')->setAttr(['-rf', $req->getParam('path')])->get();//rmdir($req->getParam('path'));
+		$data['status'] = CMDRun::init()->setCmd('rm')->setAttr(['-rf', $this->param($request, 'path')])->get();//rmdir($this->param($request, 'path'));
 		$data['status'] = empty($data['status']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 
@@ -1170,7 +1175,7 @@ class ConfManager extends Controller
 // }
 
 
-public function postLogDatatables($req,$res)
+public function postLogDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
 	//INITIAL CODE////START//
 	$data=array();
@@ -1182,7 +1187,7 @@ public function postLogDatatables($req,$res)
 	#check error#
 	if ($_SESSION['error']['status']){
 		$data['error']=$_SESSION['error'];
-		return $res -> withStatus(401) -> write(json_encode($data));
+		return $this->json($response, $data, 401);
 	}
 	//INITIAL CODE////END//
 
@@ -1194,11 +1199,11 @@ public function postLogDatatables($req,$res)
 		$data['data'] = [];
 		$data['recordsTotal'] = 0;
 		$data['recordsFiltered'] = 0;
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	//CHECK ACCESS TO THAT FUNCTION//END//
 
-	$params = $req->getParams(); //Get ALL parameters form Datatables
+	$params = $this->params($request); //Get ALL parameters form Datatables
 
 	$columns = $this->APICheckerCtrl->getTableTitles('cm_log','logging'); //Array of all columnes that will used
 	array_unshift( $columns, 'id' );
@@ -1226,7 +1231,7 @@ public function postLogDatatables($req,$res)
 
 	$data['data'] = $tempData->get()->toArray();
 
-	return $res -> withStatus(200) -> write(json_encode($data));
+	return $this->json($response, $data, 200);
 	// $data['columns'] = $columns;
 	// $queries = [];
 	// $data['filter'] = [];
@@ -1299,12 +1304,12 @@ public function postLogDatatables($req,$res)
 	// 	//Some additional parameters for Datatables
 	// 	$data['draw']=intval( $params['draw'] );
 	//
-	// 	return $res -> withStatus(200) -> write(json_encode($data));
+	// 	return $this->json($response, $data, 200);
 }
 
 
 
-public function getPreview($req,$res)
+public function getPreview(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
 	//INITIAL CODE////START//
 	$data=array();
@@ -1316,19 +1321,19 @@ public function getPreview($req,$res)
 	#check error#
 	if ($_SESSION['error']['status']){
 		$data['error']=$_SESSION['error'];
-		return $res -> withStatus(401) -> write(json_encode($data));
+		return $this->json($response, $data, 401);
 	}
 	//INITIAL CODE////END//
 	//CHECK ACCESS TO THAT FUNCTION//START//
 	if(!$this->checkAccess(1))
 	{
-		return $res -> withStatus(403) -> write(json_encode($data));
+		return $this->json($response, $data, 403);
 	}
 	//CHECK ACCESS TO THAT FUNCTION//END//
 
 	$data['preview'] = $this->createConfig(['write'=>false, 'preview'=>true]);
 	//$data['preview2'] = $this->createConfig();
-	return $res -> withStatus(200) -> write(json_encode($data));
+	return $this->json($response, $data, 200);
 }
 ################################################
 	public function createConfig( $params = array() )

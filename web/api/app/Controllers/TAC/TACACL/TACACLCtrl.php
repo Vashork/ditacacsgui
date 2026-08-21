@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\TAC\TACACL;
 
 use tgui\Models\TACACL;
@@ -7,6 +9,8 @@ use tgui\Models\TACUsers;
 use tgui\Models\TACUserGrps;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class TACACLCtrl extends Controller
 {
@@ -14,16 +18,16 @@ class TACACLCtrl extends Controller
 	public function itemValidation($req = [], $state = 'add'){
 		$id = 0;
 		if (is_object($req)){
-			$id = ($state == 'edit') ? $req->getParam('id') : 0;
+			$id = ($state == 'edit') ? $req->getParsedBody()['id'] ?? null : 0;
 		}
 
 		return $this->validator->validate($req, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( 'tgui\Models\TACACL', $id ),
 			'ace' => v::arrayVal()->length(1, null)->each(v::arrayVal()->allOf(
-				v::key('order', v::oneOf(v::numeric(), v::nullType(), v::equals('')))->setName('Order'),
-				v::key('nac', v::oneOf(v::numeric(), v::nullType(), v::equals('')))->setName('NAC'),
-				v::key('nas', v::oneOf(v::numeric(), v::nullType(), v::equals('')))->setName('NAS'),
-				v::key('action', v::numeric(), v::oneOf( v::equals(1), v::equals(0)) )->setName('Action')
+				v::key('order', v::oneOf(v::numericVal(), v::nullType(), v::equals('')))->setName('Order'),
+				v::key('nac', v::oneOf(v::numericVal(), v::nullType(), v::equals('')))->setName('NAC'),
+				v::key('nas', v::oneOf(v::numericVal(), v::nullType(), v::equals('')))->setName('NAS'),
+				v::key('action', v::numericVal(), v::oneOf( v::equals(1), v::equals(0)) )->setName('Action')
 			))
 		]);
 	}
@@ -31,7 +35,7 @@ class TACACLCtrl extends Controller
 
 ################################################
 	#########	POST Add New ACL	#########
-	public function postACLAdd($req,$res)
+	public function postACLAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -43,50 +47,50 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(12))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->itemValidation($req);
+		$validation = $this->itemValidation($request);
 
 		if ( $validation->failed() ){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['acl'] = TACACL::create( ['name' => $req->getParam('name')] );
+		$data['acl'] = TACACL::create( ['name' => $this->param($request, 'name')] );
 		$tempId = $data['acl']->id;
 
-		// $data['ace'] = array_map(function($x) use ($tempId){ $x['acl_id'] = $tempId; return $x; }, $req->getParam('ace'));
+		// $data['ace'] = array_map(function($x) use ($tempId){ $x['acl_id'] = $tempId; return $x; }, $this->param($request, 'ace'));
 
-		$this->db->table('tac_acl_ace')->insert(array_map(function($x)use ($tempId) { $x['acl_id'] = $tempId; return $x; }, $req->getParam('ace')));
+		$this->db->table('tac_acl_ace')->insert(array_map(function($x)use ($tempId) { $x['acl_id'] = $tempId; return $x; }, $this->param($request, 'ace')));
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
 		$logEntry=array('action' => 'add', 'obj_name' => $data['acl']->name, 'obj_id' => $data['acl']->id, 'section' => 'tacacs acl', 'message' => 207);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New ACL	###############END###########
 ################################################
 ########	Edit ACL	###############START###########
 	#########	GET Edit ACL	#########
-	public function getACLEdit($req,$res)
+	public function getACLEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -98,18 +102,18 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(12))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['acl'] = TACACL::select()->where('id', $req->getParam('id'))->first();
+		$data['acl'] = TACACL::select()->where('id', $this->param($request, 'id'))->first();
 
 		$data['ace'] = [];
 		$aces = $this->db->table('tac_acl_ace as ace')->
@@ -120,7 +124,7 @@ class TACACLCtrl extends Controller
 				'addr_c.address as nac_address', 'action', 'order'
 				])->
 			orderBy('order', 'asc')->
-			where('acl_id',$req->getParam('id'))->get();
+			where('acl_id',$this->param($request, 'id'))->get();
 
 		foreach ($aces as $ace) {
 			$data['ace'][] = [
@@ -143,11 +147,11 @@ class TACACLCtrl extends Controller
 
 		$data['acl']->ace = $data['ace'];
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit ACL	#########
-	public function postACLEdit($req,$res)
+	public function postACLEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -159,51 +163,51 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(12))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $validation = $this->itemValidation($req, 'edit');
+		$validation = $validation = $this->itemValidation($request, 'edit');
 
 		if ( $validation->failed() ){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		TACACL::where('id', $req->getParam('id'))->update(['name' => $req->getParam('name')]);
+		TACACL::where('id', $this->param($request, 'id'))->update(['name' => $this->param($request, 'name')]);
 
-		$tempId = $req->getParam('id');
+		$tempId = $this->param($request, 'id');
 		$this->db->table('tac_acl_ace')->where('acl_id',$tempId)->delete();
-		$this->db->table('tac_acl_ace')->insert(array_map(function($x)use ($tempId) { $x['acl_id'] = $tempId; return $x; }, $req->getParam('ace')));
+		$this->db->table('tac_acl_ace')->insert(array_map(function($x)use ($tempId) { $x['acl_id'] = $tempId; return $x; }, $this->param($request, 'ace')));
 
 		$data['save'] = 1;
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		$logEntry=array('action' => 'edit', 'obj_name' => $req->getParam('name'), 'obj_id' => $req->getParam('id'), 'section' => 'tacacs acl', 'message' => 307);
+		$logEntry=array('action' => 'edit', 'obj_name' => $this->param($request, 'name'), 'obj_id' => $this->param($request, 'id'), 'section' => 'tacacs acl', 'message' => 307);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit ACL	###############END###########
 ################################################
 ########	Delete ACL	###############START###########
 	#########	POST Delete ACL	#########
-	public function postACLDelete($req,$res)
+	public function postACLDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -215,41 +219,41 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(12))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['result']=TACACL::where('id',$req->getParam('id'))->delete();
-		$data['id']=$req->getParam('id');
-		$data['name']=$req->getParam('name');
+		$data['result']=TACACL::where('id',$this->param($request, 'id'))->delete();
+		$data['id']=$this->param($request, 'id');
+		$data['name']=$this->param($request, 'name');
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $req->getParam('name'), 'obj_id' => $req->getParam('id'), 'section' => 'tacacs acl', 'message' => 407);
+		$logEntry=array('action' => 'delete', 'obj_name' => $this->param($request, 'name'), 'obj_id' => $this->param($request, 'id'), 'section' => 'tacacs acl', 'message' => 407);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		$data['footprints_users']=TACUsers::where([['acl','=',$req->getParam('id')]])->update(['acl' => '0']);
-		$data['footprints_groups']=TACUserGrps::where([['acl','=',$req->getParam('id')]])->update(['acl' => '0']);
+		$data['footprints_users']=TACUsers::where([['acl','=',$this->param($request, 'id')]])->update(['acl' => '0']);
+		$data['footprints_groups']=TACUserGrps::where([['acl','=',$this->param($request, 'id')]])->update(['acl' => '0']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete ACL	###############END###########
 ################################################
 #########	POST CSV	#########
-	public function postACLCsv($req,$res)
+	public function postACLCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -261,13 +265,13 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(12))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
@@ -277,7 +281,7 @@ class TACACLCtrl extends Controller
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_acl');
 
 	  $f = fopen($path.$filename, 'w');
-		$idList = $req->getParam('idList');
+		$idList = $this->param($request, 'idList');
 		$array = [];
 		$array = ( empty($idList) ) ? TACACL::select($columns)->get()->toArray() : TACACL::select($columns)->whereIn('id', $idList)->get()->toArray();
 
@@ -288,13 +292,13 @@ class TACACLCtrl extends Controller
 
 		$data['filename']=$filename;
 		sleep(3);
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	CSV	###############END###########
 ################################################
 ########	ACL Datatables ###############START###########
 	#########	POST ACL Datatables	#########
-	public function postACLDatatables($req,$res)
+	public function postACLDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -306,7 +310,7 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -318,11 +322,11 @@ class TACACLCtrl extends Controller
 			$data['data'] = [];
 			$data['recordsTotal'] = 0;
 			$data['recordsFiltered'] = 0;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		//$columns = $this->APICheckerCtrl->getTableTitles('tac_acl'); //Array of all columnes that will used
 		$columns = [];
@@ -356,7 +360,7 @@ class TACACLCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	ACL Datatables	###############END###########
@@ -364,7 +368,7 @@ class TACACLCtrl extends Controller
 ################################################
 ########	List ACL	###############START###########
 	#########	GET List ACL#########
-	public function getAclList($req,$res)
+	public function getAclList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -376,22 +380,22 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = TACACL::select(['id','name AS text'])->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = TACACL::select(['id','name as text']);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -400,13 +404,13 @@ class TACACLCtrl extends Controller
 
 		$data['results']=$query->orderBy('name','asc')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	List ACL	###############END###########
 ################################################
 ########	Reference List ACL	###############START###########
 	#########	GET List ACL#########
-	public function getAclRef($req,$res)
+	public function getAclRef(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -418,11 +422,11 @@ class TACACLCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
-		$data['obj'] = TACACL::select(['id','name as text'])->where('id',$req->getParam('id'))->first();
+		$data['obj'] = TACACL::select(['id','name as text'])->where('id',$this->param($request, 'id'))->first();
 		$data['mainlist'] = [
 			[ 'name' => 'TACACS Users', 'list' => [] ],
 			[ 'name' => 'TACACS User Groups', 'list' => [] ],
@@ -434,29 +438,29 @@ class TACACLCtrl extends Controller
 
 		$data['mainlist'][0]['list'] = $this->db->table('tac_users as tu')->
 		select(['tu.username as text', 'tu.id as id'])->
-		where('acl',$req->getParam('id'))->get();
+		where('acl',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][1]['list'] = $this->db->table('tac_user_groups as tug')->
 		select(['tug.name as text', 'tug.id as id'])->
-		where('acl',$req->getParam('id'))->get();
+		where('acl',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][2]['list'] = $this->db->table('tac_devices as td')->
 		select(['td.name as text', 'td.id as id'])->
-		where('acl',$req->getParam('id'))->get();
+		where('acl',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][3]['list'] = $this->db->table('tac_device_groups as tdg')->
 		select(['tdg.name as text', 'tdg.id as id'])->
-		where('acl',$req->getParam('id'))->get();
+		where('acl',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][4]['list'] = $this->db->table('tac_user_groups as tug')->
 		select(['tug.name as text', 'tug.id as id'])->
-		where('acl_match',$req->getParam('id'))->get();
+		where('acl_match',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][5]['list'] = $this->db->table('tac_services as ts')->
 		select(['ts.name as text', 'ts.id as id'])->
-		where('acl',$req->getParam('id'))->get();
+		where('acl',$this->param($request, 'id'))->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Reference List ACL	###############END###########
 ################################################

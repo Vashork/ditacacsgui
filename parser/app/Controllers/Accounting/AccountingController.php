@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Controllers\Accounting;
 
@@ -7,7 +8,7 @@ use parser\Controllers\Controller;
 
 class AccountingController extends Controller
 {
-	public function parser()
+	public function parser(): mixed
 	{
 
 		$logLineArray=explode('|!|',$this->logLine);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\TAC\TACUsers;
 
 use tgui\Models\TACUsers;
@@ -19,6 +21,8 @@ use tgui\Models\APISMTP;
 // use BaconQrCode\Writer;
 
 use Respect\Validation\Validator as v;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class TACUsersCtrl extends Controller
 {
@@ -27,8 +31,8 @@ class TACUsersCtrl extends Controller
 		$id = 0;
 		// $group = 0;
 		if (is_object($req)){
-			$id = ($state == 'edit') ? $req->getParam('id') : 0;
-			$req = $req->getParams();
+			$id = ($state == 'edit') ? $req->getParsedBody()['id'] ?? null : 0;
+			$req = $req->getParsedBody() ?? $req->getQueryParams();
 		}
 
 		$policy = APIPWPolicy::select()->first();
@@ -90,7 +94,7 @@ class TACUsersCtrl extends Controller
 
 ################################################
 	#########	POST Add New User	#########
-	public function postUserAdd($req,$res)
+	public function postUserAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -102,31 +106,31 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		//$enable_flag_test = $req->getParam('enable_flag');
-		$allParams = $req->getParams();
+		//$enable_flag_test = $this->param($request, 'enable_flag');
+		$allParams = $this->params($request);
 
-		$validation = $this->itemValidation($req);
+		$validation = $this->itemValidation($request);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		if ( ! empty( $allParams['enable'] ) )
@@ -194,7 +198,7 @@ class TACUsersCtrl extends Controller
 
 
 			if (!$data['mail'])
-				return $res -> withStatus(200) -> write(json_encode($data));
+				return $this->json($response, $data, 200);
 
 			$data['login_date'] = date('Y-m-d H:i:s',time());
 
@@ -221,13 +225,13 @@ class TACUsersCtrl extends Controller
 		$logEntry=array('action' => 'add', 'obj_name' => $user['username'], 'obj_id' => $user['id'], 'section' => 'tacacs users', 'message' => 203);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User	###############END###########
 ################################################
 ########	Edit User	###############START###########
 	#########	GET Edit User	#########
-	public function getUserEdit($req,$res)
+	public function getUserEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -239,45 +243,45 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['user']=TACUsers::select()->where('id',$req->getParam('id'))->first();
+		$data['user']=TACUsers::select()->where('id',$this->param($request, 'id'))->first();
 		$data['user']->acl = $this->db->table('tac_acl')->
 			select(['name as text','id'])->where('id',$data['user']->acl)->get();
 
 		$data['user']['service'] = $this->db::table('tac_bind_service')->
 			leftJoin('tac_services as ts','ts.id','=','service_id')->
-			select(['ts.id as id', 'ts.name as text'])->where('tac_usr_id',$req->getParam('id'))->get();
+			select(['ts.id as id', 'ts.name as text'])->where('tac_usr_id',$this->param($request, 'id'))->get();
 
 		$data['user']['group']=$this->db::table('tac_bind_usrGrp as tbug')->
 			leftJoin('tac_user_groups as tug','tug.id','=','tbug.group_id')->
 			select(['tug.name as text', 'tug.id as id', 'tug.acl_match as acl_match', $this->db::raw('(SELECT COUNT(*) FROM ldap_bind WHERE tac_grp_id = tug.id) as ldap')])->
-			where('tbug.user_id',$req->getParam('id'))->get();
+			where('tbug.user_id',$this->param($request, 'id'))->get();
 
 		$data['user']['device_list']=$this->db::table('tac_bind_dev')->
 			leftJoin('tac_devices as td','td.id','=','device_id')->
-			select(['td.name as text', 'td.id as id'])->where('user_id',$req->getParam('id'))->get();
+			select(['td.name as text', 'td.id as id'])->where('user_id',$this->param($request, 'id'))->get();
 
 		$data['user']['device_group_list']=$this->db::table('tac_bind_devGrp')->
 			leftJoin('tac_device_groups as tdg','tdg.id','=','devGroup_id')->
-			select(['tdg.name as text', 'tdg.id as id'])->where('user_id',$req->getParam('id'))->get();
+			select(['tdg.name as text', 'tdg.id as id'])->where('user_id',$this->param($request, 'id'))->get();
 
 		if ($data['user']['login_flag'] == 3) unset($data['user']['login']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit User	#########
-	public function postUserEdit($req,$res)
+	public function postUserEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -289,31 +293,31 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
-		$validation = $this->itemValidation($req, 'edit');
+		$validation = $this->itemValidation($request, 'edit');
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		if ( ! empty( $allParams['enable'] ) )
@@ -348,13 +352,13 @@ class TACUsersCtrl extends Controller
 		// 	$allParams['mavis_otp_secret'] = trim(Base32::encodeUpper($allParams['mavis_otp_secret']), '=');
 
 		//$sendEmail = false;
-		$oldData = TACUsers::where('id',$req->getParam('id'))->select(['login_flag', 'email'])->first();
+		$oldData = TACUsers::where('id',$this->param($request, 'id'))->select(['login_flag', 'email'])->first();
 		$changes = (
 			( in_array($allParams['login_flag'], [12, 5]) ) AND
 			($oldData->login_flag != $allParams['login_flag'] OR $oldData->email != $allParams['email'])
 		);
 
-		$data['save']=TACUsers::where('id',$req->getParam('id'))->
+		$data['save']=TACUsers::where('id',$this->param($request, 'id'))->
 			update($allParams);
 
 		$groups_bind = [];
@@ -394,7 +398,7 @@ class TACUsersCtrl extends Controller
 
 
 			if (!$data['mail'])
-				return $res -> withStatus(200) -> write(json_encode($data));
+				return $this->json($response, $data, 200);
 
 			$data['login_date'] = date('Y-m-d H:i:s',time());
 
@@ -423,13 +427,13 @@ class TACUsersCtrl extends Controller
 		$logEntry=array('action' => 'edit', 'obj_name' => $username['username'], 'obj_id' => $id, 'section' => 'tacacs users', 'message' => 303);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit User	###############END###########
 ################################################
 ########	Delete User	###############START###########
 	#########	GET Delete User	#########
-	// public function getUserDelete($req,$res)
+	// public function getUserDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	// {
 	// 	//INITIAL CODE////START//
 	// 	$data=array();
@@ -441,15 +445,15 @@ class TACUsersCtrl extends Controller
 	// 	#check error#
 	// 	if ($_SESSION['error']['status']){
 	// 		$data['error']=$_SESSION['error'];
-	// 		return $res -> withStatus(401) -> write(json_encode($data));
+	// 		return $this->json($response, $data, 401);
 	// 	}
 	// 	//INITIAL CODE////END//
 	//
-	// 	return $res -> withStatus(200) -> write(json_encode($data));
+	// 	return $this->json($response, $data, 200);
 	// }
 
 	#########	POST Delete User	#########
-	public function postUserDelete($req,$res)
+	public function postUserDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -461,38 +465,38 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$user=TACUsers::where('id',$req->getParam('id'))->select('username')->first();
-		$data['result']=TACUsers::where('id',$req->getParam('id'))->delete();
-		$data['id']=$req->getParam('id');
+		$user=TACUsers::where('id',$this->param($request, 'id'))->select('username')->first();
+		$data['result']=TACUsers::where('id',$this->param($request, 'id'))->delete();
+		$data['id']=$this->param($request, 'id');
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $user->username, 'obj_id' => $req->getParam('id'), 'section' => 'tacacs users', 'message' => 403);
+		$logEntry=array('action' => 'delete', 'obj_name' => $user->username, 'obj_id' => $this->param($request, 'id'), 'section' => 'tacacs users', 'message' => 403);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete User	###############END###########
 ################################################
 #########	POST CSV User	#########
-	public function postUserCsv($req,$res)
+	public function postUserCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -504,13 +508,13 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
@@ -520,7 +524,7 @@ class TACUsersCtrl extends Controller
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_users');
 
 	  $f = fopen($path.$filename, 'w');
-		$idList = $req->getParam('idList');
+		$idList = $this->param($request, 'idList');
 		$array = [];
 		$array = ( empty($idList) ) ? TACUsers::select($columns)->get()->toArray() : TACUsers::select($columns)->whereIn('id', $idList)->get()->toArray();
 
@@ -531,13 +535,13 @@ class TACUsersCtrl extends Controller
 
 		$data['filename']=$filename;
 		sleep(3);
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	CSV User	###############END###########
 ################################################
 ########	User Datatables ###############START###########
 	#########	POST User Datatables	#########
-	public function postUserDatatables($req,$res)
+	public function postUserDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -549,7 +553,7 @@ class TACUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -561,11 +565,11 @@ class TACUsersCtrl extends Controller
 			$data['data'] = [];
 			$data['recordsTotal'] = 0;
 			$data['recordsFiltered'] = 0;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$params = $req->getParams(); //Get ALL parameters form Datatables
+		$params = $this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_users'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -590,14 +594,14 @@ class TACUsersCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	User Datatables	###############END###########
 ################################################
-	public function postUserPWChange($req,$res)
+	public function postUserPWChange(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
-		if ( ! $this->MAVISLocal->change_passwd_gui() ) return $res -> withStatus(404) -> write('Access Resticted!');
+		if ( ! $this->MAVISLocal->change_passwd_gui() ) return $response->withStatus(404)->withHeader('Content-Type', 'text/plain')->getBody()->write('Access Resticted!') ? $response : $response;
 		//INITIAL CODE////START//
 		$data=array();
 		$data=$this->initialData([
@@ -608,20 +612,20 @@ class TACUsersCtrl extends Controller
 		#check error#
 		//INITIAL CODE////END//
 		$policy = APIPWPolicy::select()->first(1);
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'username' => v::noWhitespace()->notEmpty(),
 			'password' => v::when(v::equals('1'), v::alwaysValid(), v::notEmpty()->setName('Old Password')),
-			'new_password' => v::when(v::equals('1'), v::alwaysValid(), v::notEmpty()->checkPassword($req->getParam('new_password_repeat'))->setName('New Password')),
-			'new_password_repeat' => v::when(v::equals('1'), v::alwaysValid(), v::notEmpty()->checkPassword($req->getParam('new_password'))->setName('Repeat New Password')),
+			'new_password' => v::when(v::equals('1'), v::alwaysValid(), v::notEmpty()->checkPassword($this->param($request, 'new_password_repeat'))->setName('New Password')),
+			'new_password_repeat' => v::when(v::equals('1'), v::alwaysValid(), v::notEmpty()->checkPassword($this->param($request, 'new_password'))->setName('Repeat New Password')),
 			'object' => v::oneOf(v::equals('login'),v::equals('enable')),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$user = TACUsers::select()->where([['username','=',$allParams['username']]])->
 		//orWhere([['username','=',$allParams['username']], ['enable_flag','=',3]])->
 		whereIn('login_flag',[3,5])->
@@ -644,7 +648,7 @@ class TACUsersCtrl extends Controller
 			$_SESSION['error']['status']=true;
 			$_SESSION['error']['message']="Incorrect username or password <br> Do you have rights to change password?";
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$password = '';
 
@@ -657,7 +661,7 @@ class TACUsersCtrl extends Controller
 				break;
 		}
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'new_password' => v::when(v::equals('1'), v::alwaysValid(),
 					v::length($policy['tac_pw_length'], 64)->
 					notEmpty()->
@@ -675,17 +679,17 @@ class TACUsersCtrl extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$data['success'] = TACUsers::where('id',$user->id)->update([$allParams['object'] => password_hash($allParams['new_password'], PASSWORD_DEFAULT)]);
 
 
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function postSendPasswd($req,$res)
+	public function postSendPasswd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -701,18 +705,18 @@ class TACUsersCtrl extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(4))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		//$policy = APIPWPolicy::select()->first(1);
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'id' => v::noWhitespace()->notEmpty()->numeric(),
 			'flag' => v::noWhitespace()->notEmpty()->numeric(),
 			'email' => v::notEmpty()->email(),
@@ -721,9 +725,9 @@ class TACUsersCtrl extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$id = $allParams['id'];
 
 		$password = ($allParams['flag'] == 12) ? $secret = $this->MAVISOTP::newSecret() : $this->generatePassword();
@@ -732,7 +736,7 @@ class TACUsersCtrl extends Controller
 
 
 		if (!$data['mail'])
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 
 		$data['login_date'] = date('Y-m-d H:i:s',time());
 
@@ -757,7 +761,7 @@ class TACUsersCtrl extends Controller
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	private function passwdSender($data = [], $uid = 0, $password = '', $email = '', $flag = 5){

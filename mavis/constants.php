@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 define('AV_A_ANON_INCOMING',29);
 define('AV_A_ARRAYSIZE',55);

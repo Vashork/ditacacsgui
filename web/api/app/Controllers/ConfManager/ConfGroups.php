@@ -1,17 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\ConfManager;
 
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
 use tgui\Controllers\ConfManager\ConfManagerHelper as Helper;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
 use tgui\Services\CMDRun\CMDRun as CMDRun;
 
 class ConfGroups extends Controller
 {
 ################################################
-	public function postAdd($req,$res)
+	public function postAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -23,7 +28,7 @@ class ConfGroups extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -31,43 +36,43 @@ class ConfGroups extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->alnum()//->theSameNameUsed( '\tgui\Models\Conf_Devices' ),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$status = CMDRun::init()->
 			setCmd('/opt/tacacsgui/plugins/ConfigManager/cm_git.sh')->
-			setAttr('--mkdir='.$req->getParam('name'))->
+			setAttr('--mkdir='.$this->param($request, 'name'))->
 			get();
 
 		if ( !$status ){
 				$data['error']['status']=true;
 				$data['error']['validation']=['name' => ['That name already used']];
-				return $res -> withStatus(200) -> write(json_encode($data));
+				return $this->json($response, $data, 200);
 			}
 
 		$data['group'] = 1;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getEdit($req,$res)
+	public function getEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -79,7 +84,7 @@ class ConfGroups extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -87,25 +92,25 @@ class ConfGroups extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		$data['group'] = [
-			'name' => $req->getParam('id'),
-			'name_old' => $req->getParam('id'), 
-			'id' => $req->getParam('id')];
+			'name' => $this->param($request, 'id'),
+			'name_old' => $this->param($request, 'id'),
+			'id' => $this->param($request, 'id')];
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-////////////////////////////////////////////////////////////
-	public function postEdit($req,$res)
+	////////////////////////////////////////////////////////////
+	public function postEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -117,7 +122,7 @@ class ConfGroups extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -125,17 +130,17 @@ class ConfGroups extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-    $validation = $this->validator->validate($req, [
+    $validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->alnum(),
 			'name_old' => v::noWhitespace()->notEmpty()->alnum(),
 		]);
@@ -143,18 +148,18 @@ class ConfGroups extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$status = CMDRun::init()->
 			setCmd('/opt/tacacsgui/plugins/ConfigManager/cm_git.sh')->
-			setAttr(['--new-dir-name='.$req->getParam('name'),'--mv-dir='.$req->getParam('name_old')])->
+			setAttr(['--new-dir-name='.$this->param($request, 'name'),'--mv-dir='.$this->param($request, 'name_old')])->
 			get();
 
 		if ( $status != 1 ){
 			$data['error']['status']=true;
 			$data['error']['validation']= ($status == 2) ? ['name' => ['That name already used']] : ['name' => ['Unkown error']] ;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		ConfManagerHelper::forceCommit();
@@ -162,10 +167,10 @@ class ConfGroups extends Controller
 		$data['save'] = 1;
 
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	///////////////////////////////////////////////////////////
-	public function postDel($req,$res)
+	public function postDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -177,7 +182,7 @@ class ConfGroups extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -185,35 +190,35 @@ class ConfGroups extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$data['result'] = CMDRun::init()->
 			setCmd('/opt/tacacsgui/plugins/ConfigManager/cm_git.sh')->
-			setAttr('--deldir='.$req->getParam('name'))->
+			setAttr('--deldir='.$this->param($request, 'name'))->
 			get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-  public function postDatatables($req,$res)
+  public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -225,7 +230,7 @@ class ConfGroups extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
@@ -237,11 +242,11 @@ class ConfGroups extends Controller
       $data['data'] = [];
       $data['recordsTotal'] = 0;
       $data['recordsFiltered'] = 0;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $params = $req->getParams(); //Get ALL parameters form Datatables
+    $params = $this->params($request); //Get ALL parameters form Datatables
 
     $reverse = ( $params['sortDirection'] == 'asc') ? 0 : 1;
 
@@ -291,10 +296,10 @@ class ConfGroups extends Controller
     //Some additional parameters for Datatables
     $data['draw']=intval( $params['draw'] );
 
-  	return $res -> withStatus(200) -> write(json_encode($data));
+  	return $this->json($response, $data, 200);
   }
 
-	public function getList($req,$res)
+	public function getList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -306,20 +311,20 @@ class ConfGroups extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			// $data['results'] = TACCMD::select(['id','name AS text'])->where('type',1)->whereIn('id', $id)->get();
 			$data['results'] = [];
@@ -330,14 +335,14 @@ class ConfGroups extends Controller
 				];
 			}
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 
-		$search = $req->getParam('search');
-		// $take = 10 * $req->getParam('page');
-		// $offset = (10 * ($req->getParam('page') - 1) + 1);
+		$search = $this->param($request, 'search');
+		// $take = 10 * $this->param($request, 'page');
+		// $offset = (10 * ($this->param($request, 'page') - 1) + 1);
 		$data['take'] = $take;
 		$data['offset'] = $offset;
 		$reverse=1;
@@ -369,14 +374,14 @@ class ConfGroups extends Controller
 			];
 		}
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 		//////////////////////
 		////LIST OF GROUPS////
 		// $data['incomplete_results'] = false;
 		// $data['totalCount'] = Conf_Devices::select(['id','name'])->count();
-		// $search = $req->getParam('search');
-		// $take = 10 * $req->getParam('page');
-		// $offset = 10 * ($req->getParam('page') - 1);
+		// $search = $this->param($request, 'search');
+		// $take = 10 * $this->param($request, 'page');
+		// $offset = 10 * ($this->param($request, 'page') - 1);
 		// $data['take'] = $take;
 		// $data['offset'] = $offset;
 		// $tempData = Conf_Devices::select(['id','name AS text'])->
@@ -399,7 +404,7 @@ class ConfGroups extends Controller
 		// 	array_push($data['results'],$model);
 		// }
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 }//END OF CLASS//

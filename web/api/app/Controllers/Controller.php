@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Models\TACGlobalConf;
 use tgui\Controllers\APIChecker\APIDatabase;
 use tgui\Controllers\APIHA\HAGeneral;
@@ -9,26 +13,60 @@ use tgui\Models\APIPWPolicy;
 
 class Controller
 {
-	protected $container;
-	public $databases;
-	public $tablesArr;
-	public $tablesArr_log;
+	protected \DI\Container $container;
+	public array $databases;
+	public array $tablesArr;
+	public array $tablesArr_log;
 
-	public function __construct($container)
+	public function __construct(\DI\Container $container)
 	{
 		$this->container = $container;
-		$apiDatabase = new APIDatabase;
+		$apiDatabase = new APIDatabase();
 		$this->databases = $apiDatabase->databases;
 		$this->tablesArr = $apiDatabase->tablesArr;
 		$this->tablesArr_log = $apiDatabase->tablesArr_log;
 	}
 
+	/**
+	 * Send JSON response (Slim 4 compatible)
+	 */
+	protected function json(ResponseInterface $response, array $data, int $status = 200): ResponseInterface
+	{
+		$json = json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE);
+		if ($json === false) {
+			$json = json_encode(['error' => 'JSON encode failed: ' . json_last_error_msg()], JSON_INVALID_UTF8_SUBSTITUTE);
+		}
+		$response->getBody()->write((string) $json);
+		return $response
+			->withStatus($status)
+			->withHeader('Content-Type', 'application/json');
+	}
+
+	/**
+	 * Get request parameter (Slim 4 compatible)
+	 */
+	protected function param(ServerRequestInterface $request, string $key, mixed $default = null): mixed
+	{
+		$params = $request->getParsedBody() ?? [];
+		return $params[$key] ?? $request->getQueryParams()[$key] ?? $default;
+	}
+
+	/**
+	 * Get all request parameters (Slim 4 compatible)
+	 */
+	protected function params(ServerRequestInterface $request): array
+	{
+		return $request->getParsedBody() ?? $request->getQueryParams() ?? [];
+	}
+
 	public function __get($property)
 	{
-		if($this->container->{$property})
+		// Resolve from DI container (string keys: 'db','auth','validator','APILoggingCtrl',...)
+		if ($this->container->has($property))
 		{
-			return $this->container->{$property};
+			return $this->container->get($property);
 		}
+		return null;
 	}
 	//////////////////////////////////////
 	////INITIAL DATA FUNCTION////START//

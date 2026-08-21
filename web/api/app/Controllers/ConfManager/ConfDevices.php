@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\ConfManager;
 
 use tgui\Models\Conf_Devices;
@@ -7,10 +9,13 @@ use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
 use tgui\Controllers\ConfManager\ConfManagerHelper as Helper;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
 class ConfDevices extends Controller
 {
 ################################################
-	public function postAdd($req,$res)
+	public function postAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -22,7 +27,7 @@ class ConfDevices extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -30,30 +35,30 @@ class ConfDevices extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\Conf_Devices' ),
 			'address' => v::notEmpty()->numeric(),
 			'protocol' => v::notEmpty()->oneOf( v::equals('ssh'), v::equals('telnet') ),
-			'port' => v::numeric()->notEmpty()->between(1, 65535),
+			'port' => v::numericVal()->notEmpty()->between(1, 65535),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		if ( empty($allParams['credential']) ) unset($allParams['credential']);
 		if ( empty($allParams['tac_device']) ) unset($allParams['tac_device']);
 
@@ -61,10 +66,10 @@ class ConfDevices extends Controller
 
 		$data['device'] = 1;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getEdit($req,$res)
+	public function getEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -76,7 +81,7 @@ class ConfDevices extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -84,29 +89,29 @@ class ConfDevices extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'id' => v::numeric()
+		$validation = $this->validator->validate($request, [
+			'id' => v::numericVal()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$data['device'] = Conf_Devices::leftJoin('confM_credentials as cc','cc.id','=','confM_devices.credential')->
 		select(['confM_devices.*', 'cc.name as credo_name'])->
-		where('confM_devices.id', $req->getParam('id'))->first();
+		where('confM_devices.id', $this->param($request, 'id'))->first();
 
 		$data['device']['address'] = $this->db->table('obj_addresses')->
 			select(['name as text','id','type','address'])->where('id',$data['device']->address)->get();
@@ -114,10 +119,10 @@ class ConfDevices extends Controller
 			[] : [[ 'id' => $data['device']['credential'], 'text' => $data['device']['credo_name']]];
 		unset($data['device']['credo_name']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-////////////////////////////////////////////////////////////
-	public function postEdit($req,$res)
+	////////////////////////////////////////////////////////////
+	public function postEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -129,7 +134,7 @@ class ConfDevices extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -137,31 +142,31 @@ class ConfDevices extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-    $validation = $this->validator->validate($req, [
+    $validation = $this->validator->validate($request, [
 			'name' => v::when( v::nullType() , v::alwaysValid(), v::noWhitespace()->notEmpty()->
-				theSameNameUsed( '\tgui\Models\Conf_Devices', $req->getParam('id') )->setName('Name') ),
+				theSameNameUsed( '\tgui\Models\Conf_Devices', $this->param($request, 'id') )->setName('Name') ),
 			'address' => v::notEmpty()->numeric(),
 			'protocol' => v::notEmpty()->oneOf( v::equals('ssh'), v::equals('telnet') )->setName('Protocol'),
-			'port' => v::numeric()->notEmpty()->between(1, 65535)->setName('Port'),
+			'port' => v::numericVal()->notEmpty()->between(1, 65535)->setName('Port'),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$name_old = '';
 		if (isset($allParams['name_old'])) {
 			$name_old = $allParams['name_old'];
@@ -171,22 +176,22 @@ class ConfDevices extends Controller
 		if ( isset($allParams['credential']) AND $allParams['credential'] == '') $allParams['credential'] = null;
 		if ( isset($allParams['tac_device']) AND $allParams['tac_device'] == '' ) $allParams['tac_device'] = null;
 
-		$cmd = Conf_Devices::where( 'id', $req->getParam('id') )->update($allParams);
+		$cmd = Conf_Devices::where( 'id', $this->param($request, 'id') )->update($allParams);
 
 		if ($name_old AND $allParams['name']) {
 			$data['rename']=Helper::deviceRename($name_old, $allParams['name']);
 		}
 
-		if ( $this->db::table('confM_bind_query_devices')->where( 'device_id', $req->getParam('id') )->count() ){
+		if ( $this->db::table('confM_bind_query_devices')->where( 'device_id', $this->param($request, 'id') )->count() ){
 			$this->ConfManager->createConfig();
 		}
 
 		$data['save'] = 1;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	///////////////////////////////////////////////////////////
-	public function postDel($req,$res)
+	public function postDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -198,7 +203,7 @@ class ConfDevices extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -206,35 +211,35 @@ class ConfDevices extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty(),//->theSameNameUsed( '\tgui\Models\Conf_Devices' ),
-			'id' => v::numeric()
+			'id' => v::numericVal()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		if ( $this->db::table('confM_bind_query_devices')->where( 'device_id', $req->getParam('id') )->count() ){
+		if ( $this->db::table('confM_bind_query_devices')->where( 'device_id', $this->param($request, 'id') )->count() ){
 			$data['result'] = 0;
-		} else $data['result'] = Conf_Devices::where( 'id', $req->getParam('id') )->delete();
+		} else $data['result'] = Conf_Devices::where( 'id', $this->param($request, 'id') )->delete();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-  public function postDatatables($req,$res)
+  public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -246,7 +251,7 @@ class ConfDevices extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
@@ -258,17 +263,17 @@ class ConfDevices extends Controller
       $data['data'] = [];
       $data['recordsTotal'] = 0;
       $data['recordsFiltered'] = 0;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $params = $req->getParams(); //Get ALL parameters form Datatables
+    $params = $this->params($request); //Get ALL parameters form Datatables
 
     $columns = []; //$this->APICheckerCtrl->getTableTitles('confM_devices'); //Array of all columnes that will used
     array_unshift( $columns, 'confM_devices.*' );
     array_push( $columns, 'cre.name as creden_name',
-		 	'td.name as tgui_device',
-			$this->db::raw('(SELECT COUNT(*) FROM confM_bind_query_devices WHERE device_id = qd.device_id) as ref') );
+	 	'td.name as tgui_device',
+		$this->db::raw('(SELECT COUNT(*) FROM confM_bind_query_devices WHERE device_id = qd.device_id) as ref') );
 		if (($key = array_search('name', $columns)) !== false) {
     	unset($columns[$key]);
 			array_push( $columns, 'confM_devices.name as name');
@@ -299,7 +304,7 @@ class ConfDevices extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 
     // $data['columns'] = $columns;
     // $queries = [];
@@ -379,10 +384,10 @@ class ConfDevices extends Controller
   	// 	//Some additional parameters for Datatables
   	// 	$data['draw']=intval( $params['draw'] );
 		//
-  	// 	return $res -> withStatus(200) -> write(json_encode($data));
+  	// 	return $this->json($response, $data, 200);
   }
 
-	public function getList($req,$res)
+	public function getList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -394,30 +399,30 @@ class ConfDevices extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(3, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = Conf_Devices::select(['id','name AS text'])->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = Conf_Devices::select(['id','name as text']);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -426,7 +431,7 @@ class ConfDevices extends Controller
 
 		$data['results']=$query->orderBy('name')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 }//END OF CLASS//

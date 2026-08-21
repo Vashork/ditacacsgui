@@ -1,6 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\MAVIS\MAVISSMS;
+
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 use tgui\Models\TACUsers;
 use tgui\Models\MAVISSMS;
@@ -16,7 +21,7 @@ class MAVISSMSCtrl extends Controller
 	}
 ################################################
 ########	MAVIS SMS Parameters GET	###############START###########
-	public function getSMSParams($req,$res)
+	public function getSMSParams(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -28,7 +33,7 @@ class MAVISSMSCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -36,12 +41,12 @@ class MAVISSMSCtrl extends Controller
 
 		$data['params']['pass'] = $this->generateRandomString( 8 );
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	MAVIS SMS Parameters GET	###############END###########
 ################################################
 ########	MAVIS SMS Parameters POST	###############START###########
-	public function postSMSParams($req,$res)
+	public function postSMSParams(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -53,34 +58,34 @@ class MAVISSMSCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(11))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'port' => v::when( v::nullType() , v::alwaysValid(), v::numeric())
+		$validation = $this->validator->validate($request, [
+			'port' => v::when( v::nullType() , v::alwaysValid(), v::numericVal())
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$data['mavis_sms_update'] = MAVISSMS::where([['id','=',1]])->update($allParams);
 
@@ -88,12 +93,12 @@ class MAVISSMSCtrl extends Controller
 
 		$logEntry=array('action' => 'edit', 'obj_name' => 'MAVIS', 'obj_id' => 'SMS', 'section' => 'MAVIS SMS', 'message' => 703);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	MAVIS SMS Parameters POST	###############END###########
 ################################################
 ########	MAVIS SMS Send	###############START###########
-	public function postSMSSend($req,$res)
+	public function postSMSSend(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -105,17 +110,17 @@ class MAVISSMSCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(11))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'port' => v::notEmpty()->numeric(),
 			'ipaddr' => v::notEmpty()->oneOf( v::ip(), v::domain() ),
 			'login' => v::notEmpty(),
@@ -125,11 +130,11 @@ class MAVISSMSCtrl extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$username = $req->getParam('username');
-		$number = $req->getParam('number');
+		$username = $this->param($request, 'username');
+		$number = $this->param($request, 'number');
 
 		if ( !empty($username) )
 		{
@@ -137,7 +142,7 @@ class MAVISSMSCtrl extends Controller
 			if ($number == null)
 			{
 				$data['check_result']='Number for username '. $username . ' not found';
-				return $res -> withStatus(200) -> write(json_encode($data));
+				return $this->json($response, $data, 200);
 			}
 			$data['number']=$number;
 		} elseif ( !empty($number) ) {
@@ -145,18 +150,18 @@ class MAVISSMSCtrl extends Controller
 			$username = '';
 		} else {
 			$data['check_result']='Username or Number do not set';
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$pass = MAVISSMS::select('pass')->where('id',1)->first()->pass;
 
 		$link = "/main.sh check smpp-client 'number' ".
-			'"'.$req->getParam('ipaddr').'" '.
-			'"'.$req->getParam('port').'" '.
+			'"'.$this->param($request, 'ipaddr').'" '.
+			'"'.$this->param($request, 'port').'" '.
 			'"true" '.
-			'"'.$req->getParam('login').'" '.
+			'"'.$this->param($request, 'login').'" '.
 			'"'.$pass.'" '.
-			'"'.$req->getParam('srcname').'" '.
+			'"'.$this->param($request, 'srcname').'" '.
 			'"'.$number.'" '.
 			'"'.$username.'" '.
 			' 2>&1';
@@ -165,11 +170,11 @@ class MAVISSMSCtrl extends Controller
 
 		$data['check_result']=shell_exec(TAC_ROOT_PATH . $link);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	MAVIS SMS Send	###############END###########
 ########	MAVIS SMS Check	###############START###########
-	public function postSMSCheck($req,$res)
+	public function postSMSCheck(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -181,17 +186,17 @@ class MAVISSMSCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(11, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'test_username' => v::notEmpty(),
 			'sms_password' => v::notEmpty()->numeric()
 		]);
@@ -199,14 +204,14 @@ class MAVISSMSCtrl extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		$data['test_configuration'] = $this->TACConfigCtrl->testConfiguration($this->TACConfigCtrl->createConfiguration("\n "));
 
-		$data['check_result']=shell_exec(TAC_ROOT_PATH . '/main.sh check mavis '.$req->getParam('test_username').' '.$req->getParam('sms_password').' 2>&1');
+		$data['check_result']=shell_exec(TAC_ROOT_PATH . '/main.sh check mavis '.$this->param($request, 'test_username').' '.$this->param($request, 'sms_password').' 2>&1');
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	MAVIS SMS Check	###############END###########
 }//END OF CLASS//

@@ -1,5 +1,11 @@
 <?php
+
+declare(strict_types=1);
+
 namespace tgui\Controllers\TAC\TACExport;
+
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 use tgui\Models\TACDevices;
 
@@ -9,7 +15,7 @@ use tgui\Services\CMDRun\CMDRun as CMDRun;
 
 class TACExportCtrl extends Controller
 {
-  public function getExport($req,$res)
+  public function getExport(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
   	//INITIAL CODE////START//
   	$data=array();
@@ -21,14 +27,14 @@ class TACExportCtrl extends Controller
   	#check error#
   	if ($_SESSION['error']['status']){
   		$data['error']=$_SESSION['error'];
-  		return $res -> withStatus(401) -> write(json_encode($data));
+  		return $this->json($response, $data, 401);
   	}
   	//INITIAL CODE////END//
     shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
 
     $model = false;
     $path = TAC_ROOT_PATH . '/temp/';
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
     $allParams['ids'] = isset($allParams['ids']) ? explode(',',$allParams['ids']) : [];
     $query = false;
     $columns = [];
@@ -64,7 +70,7 @@ class TACExportCtrl extends Controller
 
     if ( !$query ){
       echo '<h1>Query error! Sorry</h1>';
-			return $res -> withStatus(500) -> withHeader('Content-type', 'text/html');
+			return $response->withStatus(500)->withHeader('Content-type', 'text/html');
     }
 
   	$filename = $mainName.'_'. $this->generateRandomString(8) .'.csv';
@@ -81,7 +87,7 @@ class TACExportCtrl extends Controller
 
     if ( !file_exists($path.$filename) ) {
 			echo '<h1>Error. File '.$path . $file .' Not Found</h1>';
-			return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+			return $response->withStatus(404)->withHeader('Content-type', 'text/html');
 		}
 
     header("X-Sendfile: ".$path."".$filename);

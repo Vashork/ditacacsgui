@@ -1,6 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\Obj\ObjAddress;
+
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 use tgui\Models\ObjAddress_;
 use tgui\Controllers\Controller;
@@ -9,23 +14,23 @@ use Respect\Validation\Validator as v;
 class ObjAddress extends Controller
 {
 ################################################
-	public function itemValidation($req, $state = 'add'){
+	public function itemValidation($req = [], string $state = 'add'){
 		$id = 0;
 		$type = 0;
 		if (is_object($req)){
-			$id = ($state == 'edit') ? $req->getParam('id') : 0;
-			$type = $req->getParam('type');
+			$id = ($state == 'edit') ? $req->getParsedBody()['id'] ?? null : 0;
+			$type = $req->getParsedBody()['type'] ?? null;
 		} else {
 			$type = (isset($req['type'])) ? $req['type'] : 0;
 		}
 		return $this->validator->validate($req, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\ObjAddress_', $id ),
 			'address' => v::notEmpty()->checkAddress($type)->setName('Address'),
-			'type' => v::numeric()->oneOf( v::equals(0), v::equals(1), v::equals(2)),
+			'type' => v::numericVal()->oneOf( v::equals(0), v::equals(1), v::equals(2)),
 		]);
 	}
 
-	public function postAdd($req,$res)
+	public function postAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -37,40 +42,40 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->itemValidation($req);
+		$validation = $this->itemValidation($request);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$data['address'] = ObjAddress_::create($allParams);
 
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getEdit($req,$res)
+	public function getEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -82,7 +87,7 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -90,32 +95,32 @@ class ObjAddress extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'id' => v::numeric()
+		$validation = $this->validator->validate($request, [
+			'id' => v::numericVal()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['address'] = ObjAddress_::select()->where('id', $req->getParam('id'))->first();
+		$data['address'] = ObjAddress_::select()->where('id', $this->param($request, 'id'))->first();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ////////////////////////////////////////////////////////////
-	public function postEdit($req,$res)
+	public function postEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -127,7 +132,7 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -135,32 +140,32 @@ class ObjAddress extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $validation = $this->itemValidation($req, 'edit');
+		$validation = $validation = $this->itemValidation($request, 'edit');
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$data['save']=ObjAddress_::where('id', $allParams['id'])->update($allParams);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	///////////////////////////////////////////////////////////
-	public function postDel($req,$res)
+	public function postDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -172,7 +177,7 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -180,35 +185,35 @@ class ObjAddress extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'id' => v::numeric()->notEmpty()
+		$validation = $this->validator->validate($request, [
+			'id' => v::numericVal()->notEmpty()
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
 		// if ( $this->db::table('confM_bind_query_devices')->where( 'device_id', $req->getParam('id') )->count() ){
 		// 	$data['result'] = 0;
 		// } else
-		$data['result'] = ObjAddress_::where( 'id', $req->getParam('id') )->delete();
+		$data['result'] = ObjAddress_::where( 'id', $this->param($request, 'id') )->delete();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-  public function postDatatables($req,$res)
+  public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -220,7 +225,7 @@ class ObjAddress extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
@@ -232,11 +237,11 @@ class ObjAddress extends Controller
       $data['data'] = [];
       $data['recordsTotal'] = 0;
       $data['recordsFiltered'] = 0;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $params = $req->getParams(); //Get ALL parameters form Datatables
+    $params = $this->params($request); //Get ALL parameters form Datatables
 
 		//$columns = $this->APICheckerCtrl->getTableTitles('obj_addresses'); //Array of all columnes that will used
 		$columns = [];
@@ -269,10 +274,10 @@ class ObjAddress extends Controller
 			$data['data'] = $tempData->
 			get()->toArray();
 
-  	return $res -> withStatus(200) -> write(json_encode($data));
+   	return $this->json($response, $data, 200);
   }
 
-	public function getList($req,$res)
+	public function getList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -284,31 +289,31 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$result = ( is_array($id) ) ? ObjAddress_::select(['id','name AS text','type','address'])->whereIn('id', $req->getParam('id'))
+		if ($this->param($request, 'id') != null){
+			$result = ( is_array($id) ) ? ObjAddress_::select(['id','name AS text','type','address'])->whereIn('id', $this->param($request, 'id'))
 			:
-			ObjAddress_::select(['id','name AS text','type','address'])->where('id', $req->getParam('id'));
+			ObjAddress_::select(['id','name AS text','type','address'])->where('id', $this->param($request, 'id'));
 			$data['results'] = $result->orderBy('name')->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = ObjAddress_::select(['id','name AS text','type','address'])->orderBy('name');
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -317,15 +322,15 @@ class ObjAddress extends Controller
 
 		$data['results']=$query->orderBy('name')->get()->toArray();
 
-		$extra = json_decode($req->getParam('extra'));
+		$extra = json_decode($this->param($request, 'extra'));
 
 		if ( $extra AND !empty($extra->any) )
 			array_unshift( $data['results'], ['text' => 'any', 'id' => 0, 'address' => 'any']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
-	public function getRef($req,$res)
+	public function getRef(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -337,18 +342,18 @@ class ObjAddress extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(14, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['obj'] = ObjAddress_::select(['id','name as text'])->where('id',$req->getParam('id'))->first();
+		$data['obj'] = ObjAddress_::select(['id','name as text'])->where('id',$this->param($request, 'id'))->first();
 		$data['mainlist'] = [
 			[ 'name' => 'TACACS Devices', 'list' => [] ],
 			[ 'name' => 'TACACS ACLs', 'list' => [] ],
@@ -357,19 +362,19 @@ class ObjAddress extends Controller
 
 		$data['mainlist'][0]['list'] = $this->db->table('tac_devices as td')->
 		select(['td.name as text', 'td.id as id'])->
-		where('address',$req->getParam('id'))->get();
+		where('address',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][1]['list'] = $this->db->table('tac_acl as ta')->
 		leftJoin('tac_acl_ace as tae', 'tae.acl_id','=','ta.id')->
 		select(['ta.name as text', 'ta.id as id'])->
 		groupBy('ta.id')->
-		where('tae.nas',$req->getParam('id'))->orWhere('tae.nac',$req->getParam('id'))->get();
+		where('tae.nas',$this->param($request, 'id'))->orWhere('tae.nac',$this->param($request, 'id'))->get();
 
 		$data['mainlist'][2]['list'] = $this->db->table('confM_devices as cd')->
 		select(['cd.name as text', 'cd.id as id'])->
-		where('address',$req->getParam('id'))->get();
+		where('address',$this->param($request, 'id'))->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	public function selectType($type = 0){

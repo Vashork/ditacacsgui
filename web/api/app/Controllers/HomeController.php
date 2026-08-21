@@ -1,52 +1,54 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 class HomeController extends Controller
 {
-	public function getHome($req, $res)
-	{
-		//INITIAL CODE////START//
-		$data=array();
+    public function getHome(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $data = [
+            'info' => [
+                'general' => [
+                    'type' => 'get',
+                    'object' => 'auth',
+                    'action' => 'signin',
+                    'time' => time()
+                ],
+                'version' => [
+                    'TACVER' => TACVER,
+                    'APIVER' => APIVER,
+                ],
+                'user' => [
+                    'id' => (isset($_SESSION['uid'])) ? $_SESSION['uid'] : 'empty',
+                ],
+            ],
+            'error' => [
+                'error' => [
+                    'status' => false,
+                ]
+            ],
+        ];
 
-		$data['info'] = array(
-			'general' => [
-				'type' => 'get',
-				'object' => 'auth',
-				'action' => 'singin',
-				'time' => time()
-			],
-			'version' => [
-				'TACVER' => TACVER,
-				'APIVER' => APIVER,
-			],
-			'user' => [
-				'id' => (isset($_SESSION['uid'])) ? $_SESSION['uid'] : 'empty',
-			],
-		);
-		$data['error'] = array(
-			'error' => [
-				'status' => false,
-			]
-		);
-		//INITIAL CODE////END//
-		//////////////////////
-		#check user auth#
-		$this->auth->check();
-		#check error#
-		if ($_SESSION['error']['status']){
-			$data['error']=$_SESSION['error'];
-			$res -> getBody() -> write(json_encode($data));
-			return 0;
-		}
-		//INITIAL CODE////END//
-		return $res -> withStatus(200) -> write(json_encode($data));
-	}
+        // Check user auth
+        $this->auth->check();
 
-	public function postHome($req, $res)
-	{
-		$data['info']='unset';
+        // Check error
+        if (isset($_SESSION['error']['status']) && $_SESSION['error']['status']) {
+            $data['error'] = $_SESSION['error'];
+            return $this->json($response, $data, 401);
+        }
 
-		return $res -> withStatus(200) -> write(json_encode($data));
-	}
+        return $this->json($response, $data, 200);
+    }
+
+    public function postHome(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $data = ['info' => 'unset'];
+        return $this->json($response, $data, 200);
+    }
 }

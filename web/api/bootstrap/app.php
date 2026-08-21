@@ -1,232 +1,232 @@
 <?php
-ini_set('max_execution_time', 300); //300 seconds = 5 minutes // FIX LOOP Timeout Issue
-set_time_limit(300); // FIX LOOP Timeout Issue
-ini_set('memory_limit', '1024M'); // or you could use 1G
-// date_default_timezone_set ( trim( shell_exec("timedatectl | grep 'Time zone:' | awk '{ print $3 }'")) );
+
+declare(strict_types=1);
+
+ini_set('max_execution_time', 300);
+set_time_limit(300);
+ini_set('memory_limit', '1024M');
+
+// Load environment variables
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->safeLoad();
 
 require __DIR__ . '/../constants.php';
+require __DIR__ . '/../app/Validation/initValidation.php';
+initRespectValidationFactory();
 
-use Respect\Validation\Validator as v;
-
-session_start();
-
-$_SESSION['error']=array();
-$_SESSION['error']['status']=true;
-$_SESSION['error']['authorized']=false;
-$_SESSION['error']['message']='Unknown Error';
-
-require __DIR__ . '/../config.php';
-require __DIR__ . '/../vendor/autoload.php';
-
-use tgui\Controllers\APIHA\HAGeneral;
+use Slim\App;
+use Slim\Factory\AppFactory;
+use DI\Container;
 use Illuminate\Database\Capsule\Manager as Capsule;
-$app = new \Slim\App([
-	'settings' => [
-		'displayErrorDetails' => true,
-		'db' => [
-			'default' => [
-				'driver' => 'mysql',
-				'host'	=> DB_HOST,
-				'database' => DB_NAME,
-				'username' => ( ! HAGeneral::isSlave() ) ? DB_USER : 'tgui_ro',
-				'password' => ( ! HAGeneral::isSlave() ) ? DB_PASSWORD : HAGeneral::isSlave(),
-				'charset' => DB_CHARSET,
-				'collation' => DB_COLLATE,
-				'prefix' => ''
-			],
-			'logging' => [
-				'driver' => 'mysql',
-				'host'	=> DB_HOST,
-				'database' => DB_NAME_LOG,
-				'username' => DB_USER,
-				'password' => DB_PASSWORD,
-				'charset' => DB_CHARSET,
-				'collation' => DB_COLLATE,
-				'prefix' => ''
-			]
-		]
-	],
+use tgui\Controllers\APIHA\HAGeneral;
+
+// Create DI Container
+$container = new Container();
+
+/**
+ * Compute the current HA role from the on-disk yaml (file-based, not container-based,
+ * so it can be called before any controller is resolved).
+ * Returns: 'master' | 'slave' | 'standalone'
+ */
+$haRole = static function (): string {
+    $mainFile = '/opt/tgui_data/ha/ha-settings.yaml';
+    if (!file_exists($mainFile)) {
+        return 'standalone';
+    }
+    $cfg = \Symfony\Component\Yaml\Yaml::parseFile($mainFile);
+    $role = $cfg['role'] ?? 0;
+    return $role === 1 ? 'master' : ($role === 2 ? 'slave' : 'standalone');
+};
+
+/**
+ * Slave DB password is the slave PSK by design (read from ha-settings.yaml).
+ */
+$slavePsk = static function (): string {
+    $mainFile = '/opt/tgui_data/ha/ha-settings.yaml';
+    if (!file_exists($mainFile)) {
+        return '';
+    }
+    $cfg = \Symfony\Component\Yaml\Yaml::parseFile($mainFile);
+    return ($cfg['role'] ?? 0) === 2 ? (string) ($cfg['psk_s'] ?? '') : '';
+};
+
+// Register database connection (a SINGLE shared Capsule instance)
+$container->set('db', function () use ($haRole, $slavePsk) {
+    $capsule = new Capsule();
+
+    $driver = $_ENV['DB_DRIVER'] ?? 'mysql';
+
+    if ($driver === 'sqlite') {
+        // DEV-ONLY: use SQLite files (no MySQL needed for local smoke-testing).
+        $base   = __DIR__ . '/../storage/sqlite';
+        if (!is_dir($base)) { @mkdir($base, 0777, true); }
+        $defFile = $base . '/tgui.sqlite';
+        $logFile = $base . '/tgui_log.sqlite';
+
+        // Create empty files so SQLiteConnector doesn't throw "does not exist".
+        if (!file_exists($defFile)) { touch($defFile); }
+        if (!file_exists($logFile)) { touch($logFile); }
+
+        $capsule->addConnection(['driver' => 'sqlite', 'database' => $defFile, 'prefix' => '', 'foreign_key_constraints' => false], 'default');
+        $capsule->addConnection(['driver' => 'sqlite', 'database' => $logFile, 'prefix' => '', 'foreign_key_constraints' => false], 'logging');
+
+        $capsule->setAsGlobal();
+        $capsule->bootEloquent();
+
+        // Build schema + seed on first run (when api_users table is missing).
+        $tables = $capsule->connection('default')->getSchemaBuilder()->getAllTables();
+        if (!in_array('api_users', array_column($tables, 'name'), true) && !in_array('api_users', $tables, true)) {
+            \tgui\SchemaBuilderSqlite::build($defFile);
+        }
+
+        return $capsule;
+    }
+
+    $role = $haRole();
+    $isSlave = ($role === 'slave');
+
+    $capsule->addConnection([
+        'driver'    => 'mysql',
+        'host'      => $_ENV['DB_HOST'] ?? 'localhost',
+        'database'  => $_ENV['DB_DATABASE'] ?? 'tgui',
+        'username'  => $isSlave ? 'tgui_ro' : ($_ENV['DB_USERNAME'] ?? 'tgui_user'),
+        'password'  => $isSlave ? $slavePsk() : ($_ENV['DB_PASSWORD'] ?? ''),
+        'charset'   => $_ENV['DB_CHARSET'] ?? 'utf8mb4',
+        'collation' => $_ENV['DB_COLLATE'] ?? 'utf8mb4_unicode_ci',
+        'prefix'    => '',
+    ], 'default');
+
+    $capsule->addConnection([
+        'driver'    => 'mysql',
+        'host'      => $_ENV['DB_HOST'] ?? 'localhost',
+        'database'  => $_ENV['DB_DATABASE_LOG'] ?? 'tgui_log',
+        'username'  => $isSlave ? 'tgui_ro' : ($_ENV['DB_USERNAME'] ?? 'tgui_user'),
+        'password'  => $isSlave ? $slavePsk() : ($_ENV['DB_PASSWORD'] ?? ''),
+        'charset'   => $_ENV['DB_CHARSET'] ?? 'utf8mb4',
+        'collation' => $_ENV['DB_COLLATE'] ?? 'utf8mb4_unicode_ci',
+        'prefix'    => '',
+    ], 'logging');
+
+    // Make Capsule the global + static resolver so BOTH
+    //   $capsule->table(...)  (instance)
+    //   Capsule::table(...)   (static pass-through, used 242x in controllers)
+    // resolve to the same connections.
+    $capsule->setAsGlobal();
+    $capsule->bootEloquent();
+
+    return $capsule;
+});
+
+// Register validator
+$container->set('validator', static function () {
+    return new \tgui\Validation\Validator();
+});
+
+// Register auth
+$container->set('auth', static function () {
+    return new \tgui\Auth\Auth();
+});
+
+// Register controllers under BOTH a string key (used by Controller::__get for
+// cross-controller calls like $this->APILoggingCtrl) AND the FQCN (used by
+// routes.php: $container->get(SomeCtrl::class)). PHP-DI auto-wires the
+// constructor (\DI\Container) for us.
+$controllerMap = [
+    'HomeController'       => \tgui\Controllers\HomeController::class,
+    'AuthController'       => \tgui\Controllers\Auth\AuthController::class,
+    'APIUsersCtrl'         => \tgui\Controllers\API\APIUsers\APIUsersCtrl::class,
+    'APIUserGrpsCtrl'      => \tgui\Controllers\API\APIUserGrps\APIUserGrpsCtrl::class,
+    'APISettingsCtrl'      => \tgui\Controllers\APISettings\APISettingsCtrl::class,
+    'APIHACtrl'            => \tgui\Controllers\APIHA\APIHACtrl::class,
+    'APINotificationCtrl'  => \tgui\Controllers\APINotification\APINotificationCtrl::class,
+    'APIDevCtrl'           => \tgui\Controllers\APIDev\APIDevCtrl::class,
+    'APIBackupCtrl'        => \tgui\Controllers\APIBackup\APIBackupCtrl::class,
+    'APIUpdateCtrl'        => \tgui\Controllers\APIUpdate\APIUpdateCtrl::class,
+    'APIDownloadCtrl'      => \tgui\Controllers\APIDownload\APIDownloadCtrl::class,
+    'APILoggingCtrl'       => \tgui\Controllers\APILogging\APILoggingCtrl::class,
+    'APICheckerCtrl'       => \tgui\Controllers\APIChecker\APICheckerCtrl::class,
+    'TACDevicesCtrl'       => \tgui\Controllers\TAC\TACDevices\TACDevicesCtrl::class,
+    'TACDeviceGrpsCtrl'    => \tgui\Controllers\TAC\TACDeviceGrps\TACDeviceGrpsCtrl::class,
+    'TACUsersCtrl'         => \tgui\Controllers\TAC\TACUsers\TACUsersCtrl::class,
+    'TACUserGrpsCtrl'      => \tgui\Controllers\TAC\TACUserGrps\TACUserGrpsCtrl::class,
+    'TACACLCtrl'           => \tgui\Controllers\TAC\TACACL\TACACLCtrl::class,
+    'TACServicesCtrl'      => \tgui\Controllers\TAC\TACServices\TACServicesCtrl::class,
+    'TACCMDCtrl'           => \tgui\Controllers\TAC\TACCMD\TACCMDCtrl::class,
+    'TACConfigCtrl'        => \tgui\Controllers\TACConfig\TACConfigCtrl::class,
+    'TACExportCtrl'        => \tgui\Controllers\TAC\TACExport\TACExportCtrl::class,
+    'TACImportCtrl'        => \tgui\Controllers\TAC\TACImport\TACImportCtrl::class,
+    'TACReportsCtrl'       => \tgui\Controllers\TACReports\TACReportsCtrl::class,
+    'ObjAddress'           => \tgui\Controllers\Obj\ObjAddress\ObjAddress::class,
+    'MAVISLDAP'            => \tgui\Controllers\MAVIS\MAVISLDAP\MAVISLDAPCtrl::class,
+    'MAVISLocal'           => \tgui\Controllers\MAVIS\MAVISLocal\MAVISLocalCtrl::class,
+    'MAVISOTP'             => \tgui\Controllers\MAVIS\MAVISOTP\MAVISOTPCtrl::class,
+    'MAVISSMS'             => \tgui\Controllers\MAVIS\MAVISSMS\MAVISSMSCtrl::class,
+    'ConfManager'          => \tgui\Controllers\ConfManager\ConfManager::class,
+    'ConfModels'           => \tgui\Controllers\ConfManager\ConfModels::class,
+    'ConfDevices'          => \tgui\Controllers\ConfManager\ConfDevices::class,
+    'ConfGroups'           => \tgui\Controllers\ConfManager\ConfGroups::class,
+    'ConfigCredentials'    => \tgui\Controllers\ConfManager\ConfigCredentials::class,
+    'ConfQueries'          => \tgui\Controllers\ConfManager\ConfQueries::class,
+    'HAGeneral'            => \tgui\Controllers\APIHA\HAGeneral::class,
+    'HAMaster'             => \tgui\Controllers\APIHA\HAMaster::class,
+    'HASlave'              => \tgui\Controllers\APIHA\HASlave::class,
+];
+
+foreach ($controllerMap as $shortName => $fqcn) {
+    // String key for Controller::__get() cross-controller calls.
+    // Use a closure that resolves the FQCN via PHP-DI auto-wiring, so the
+    // returned value is a CONTROLLER OBJECT (not the FQCN string).
+    $container->set($shortName, static function (\DI\Container $c) use ($fqcn) {
+        return $c->get($fqcn);
+    });
+    // NOTE: We do NOT register the FQCN explicitly. PHP-DI's AutoWiring source
+    // resolves $container->get(X::class) by auto-constructing X (injecting \DI\Container).
+    // Registering the FQCN with a closure that calls $c->get($fqcn) causes a circular dependency.
+}
+
+// Create Slim App
+AppFactory::setContainer($container);
+$app = AppFactory::create();
+
+// Add middleware
+$app->addBodyParsingMiddleware();
+$app->addRoutingMiddleware();
+// ErrorMiddleware is auto-added by AppFactory::create() with correct deps.
+
+// Add JWT Authentication middleware (tuupola/slim-jwt-auth v3)
+$jwtMiddleware = new \Tuupola\Middleware\JwtAuthentication([
+    'secret'   => $_ENV['JWT_SECRET'] ?? '',
+    'algorithm' => [$_ENV['JWT_ALGORITHM'] ?? 'HS256'],
+    'secure'   => false,
+    'path'     => '/auth',
+    'ignore'   => [
+        '/auth/signin/',
+        '/auth/singin/',
+        '/tacacs/user/change_passwd/change/',
+        '/backup/download/',
+        '/backup/upload/',
+        '/ha/',
+        '/export/',
+        '/import/',
+    ],
+    'error'    => function (\Psr\Http\Message\ResponseInterface $response, array $arguments): \Psr\Http\Message\ResponseInterface {
+        $data = [
+            "status"  => "error",
+            "message" => $arguments["message"] ?? "Unauthorized",
+        ];
+        return $response
+            ->withStatus(401)
+            ->withHeader("Content-Type", "application/json")
+            ->withJson($data);
+    },
 ]);
+$app->add($jwtMiddleware);
 
-$container = $app->getContainer();
-
-$capsule = new Capsule;
-$capsule->addConnection($container['settings']['db']['default'], 'default');
-$capsule->addConnection($container['settings']['db']['logging'], 'logging');
-$capsule->setAsGlobal();
-$capsule->schema();
-$capsule->bootEloquent();
-
-$container['db'] = function($container) use ($capsule) {
-	return $capsule;
-};
-
-$container['validator'] = function($container) {
-	return new \tgui\Validation\Validator;
-};
-
-$container['HomeController'] = function($container) {
-	return new \tgui\Controllers\HomeController($container);
-};
-
-$container['AuthController'] = function($container) {
-	return new \tgui\Controllers\Auth\AuthController($container);
-};
-
-$container['APIUsersCtrl'] = function($container) {
-	return new \tgui\Controllers\API\APIUsers\APIUsersCtrl($container);
-};
-
-$container['APIUpdateCtrl'] = function($container) {
-	return new \tgui\Controllers\APIUpdate\APIUpdateCtrl($container);
-};
-
-$container['APIUserGrpsCtrl'] = function($container) {
-	return new \tgui\Controllers\API\APIUserGrps\APIUserGrpsCtrl($container);
-};
-
-$container['APISettingsCtrl'] = function($container) {
-	return new \tgui\Controllers\APISettings\APISettingsCtrl($container);
-};
-
-$container['APIHACtrl'] = function($container) {
-	return new \tgui\Controllers\APIHA\APIHACtrl($container);
-};
-
-$container['APINotificationCtrl'] = function($container) {
-	return new \tgui\Controllers\APINotification\APINotificationCtrl($container);
-};
-$container['APIDevCtrl'] = function($container) {
-	return new \tgui\Controllers\APIDev\APIDevCtrl($container);
-};
-
-$container['TACDevicesCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACDevices\TACDevicesCtrl($container);
-};
-$container['TACDeviceGrpsCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACDeviceGrps\TACDeviceGrpsCtrl($container);
-};
-$container['TACUsersCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACUsers\TACUsersCtrl($container);
-};
-
-$container['TACUserGrpsCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACUserGrps\TACUserGrpsCtrl($container);
-};
-
-$container['TACACLCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACACL\TACACLCtrl($container);
-};
-
-$container['TACServicesCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACServices\TACServicesCtrl($container);
-};
-
-$container['TACCMDCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACCMD\TACCMDCtrl($container);
-};
-
-$container['TACConfigCtrl'] = function($container) {
-	return new \tgui\Controllers\TACConfig\TACConfigCtrl($container);
-};
-
-$container['TACExportCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACExport\TACExportCtrl($container);
-};
-$container['TACImportCtrl'] = function($container) {
-	return new \tgui\Controllers\TAC\TACImport\TACImportCtrl($container);
-};
-
-$container['ObjAddress'] = function($container) {
-	return new \tgui\Controllers\Obj\ObjAddress\ObjAddress($container);
-};
-$container['APICheckerCtrl'] = function($container) {
-	return new \tgui\Controllers\APIChecker\APICheckerCtrl($container);
-};
-$container['TACReportsCtrl'] = function($container) {
-	return new \tgui\Controllers\TACReports\TACReportsCtrl($container);
-};
-$container['APILoggingCtrl'] = function($container) {
-	return new \tgui\Controllers\APILogging\APILoggingCtrl($container);
-};
-$container['APIBackupCtrl'] = function($container) {
-	return new \tgui\Controllers\APIBackup\APIBackupCtrl($container);
-};
-$container['APIDownloadCtrl'] = function($container) {
-	return new \tgui\Controllers\APIDownload\APIDownloadCtrl($container);
-};
-$container['MAVISLDAP'] = function($container) {
-	return new \tgui\Controllers\MAVIS\MAVISLDAP\MAVISLDAPCtrl($container);
-};
-$container['MAVISLocal'] = function($container) {
-	return new \tgui\Controllers\MAVIS\MAVISLocal\MAVISLocalCtrl($container);
-};
-$container['MAVISOTP'] = function($container) {
-	return new \tgui\Controllers\MAVIS\MAVISOTP\MAVISOTPCtrl($container);
-};
-$container['MAVISSMS'] = function($container) {
-	return new \tgui\Controllers\MAVIS\MAVISSMS\MAVISSMSCtrl($container);
-};
-
-$container['ConfManager'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfManager($container);
-};
-$container['ConfModels'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfModels($container);
-};
-$container['ConfDevices'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfDevices($container);
-};
-$container['ConfGroups'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfGroups($container);
-};
-$container['ConfigCredentials'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfigCredentials($container);
-};
-$container['ConfQueries'] = function($container) {
-	return new \tgui\Controllers\ConfManager\ConfQueries($container);
-};
-
-$container['HAGeneral'] = function($container) {
-	return new \tgui\Controllers\APIHA\HAGeneral($container);
-};
-$container['HAMaster'] = function($container) {
-	return new \tgui\Controllers\APIHA\HAMaster($container);
-};
-$container['HASlave'] = function($container) {
-	return new \tgui\Controllers\APIHA\HASlave($container);
-};
-
-/*$container['csrf'] = function($container) {
-	return new \Slim\Csrf\Guard;
-};*/
-
-$container['auth'] = function($container) {
-	return new \tgui\Auth\Auth;
-};
-
-//$app->add(new \tgui\Middleware\ValidationErrorsMiddleware($container));
-//$app->add(new \tgui\Middleware\OldInputMiddleware($container));
+// Add custom middleware
 $app->add(new \tgui\Middleware\ChangeHeaderMiddleware($container));
 
-$app->add(new Tuupola\Middleware\JwtAuthentication([
-		//"path" => "/api/auth/123",
-		"ignore" => ["/auth", "/tacacs/user/change_passwd/change/", "/backup/download/", "/backup/upload/", '/ha/', '/export/', '/import/'],
-		"attribute" => "decoded_token_data",
-    "secret" => DB_PASSWORD,
-		"algorithm" => ["HS256"],
-		"secure" => false,
-		"error" => function ($response, $arguments) {
-				$data["status"] = "error";
-				$data["message"] = $arguments["message"];
-				return $response
-						->withHeader("Content-Type", "application/json")
-						->write(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
-		}
-]));
-
-//$app->add($container->csrf); //Turn on CSRF for all project//
-
-v::with('tgui\\Validation\\Rules\\');
-
+// Load routes
 require __DIR__ . '/../app/routes.php';
+registerRoutes($app, $container);
+
+return $app;

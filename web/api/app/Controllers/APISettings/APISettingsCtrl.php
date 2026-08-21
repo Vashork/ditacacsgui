@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\APISettings;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\PHPMailer\EmailEngine;
 use tgui\Models\APIPWPolicy;
 use tgui\Models\APISMTP;
@@ -14,7 +18,7 @@ use tgui\Services\CMDRun\CMDRun as CMDRun;
 class APISettingsCtrl extends Controller
 {
 ####PASSWORD POLICY#####
-  public function getPasswdPolicy($req,$res)
+  public function getPasswdPolicy(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -26,22 +30,22 @@ class APISettingsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
     $data['policy'] = APIPWPolicy::select()->find(1);
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postPasswdPolicy($req,$res)
+  public function postPasswdPolicy(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -53,53 +57,53 @@ class APISettingsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
     //CHECK SHOULD I STOP THIS?//START//
     if( $this->shouldIStopThis() )
     {
       $data['error'] = $this->shouldIStopThis();
-      return $res -> withStatus(400) -> write(json_encode($data));
+      return $this->json($response, $data, 400);
     }
     //CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-    $validation = $this->validator->validate($req, [
-      'api_pw_length' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(4)->setName('API Password length')),
-      'tac_pw_length' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(4)->setName('Tacacs Password length')),
-      'api_pw_uppercase' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('API Uppercase Characters')),
-      'api_pw_lowercase' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('API Lowcase Characters')),
-      'api_pw_numbers' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('API Numbers Characters')),
-      'api_pw_special' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('API Special Characters')),
-      'tac_pw_uppercase' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('TACACS Uppercase Characters')),
-      'tac_pw_lowercase' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('TACACS Lowcase Characters')),
-      'tac_pw_numbers' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('TACACS Numbers Characters')),
-      'tac_pw_special' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)->setName('TACACS Special Characters')),
+    $validation = $this->validator->validate($request, [
+      'api_pw_length' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(4)->setName('API Password length')),
+      'tac_pw_length' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(4)->setName('Tacacs Password length')),
+      'api_pw_uppercase' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('API Uppercase Characters')),
+      'api_pw_lowercase' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('API Lowcase Characters')),
+      'api_pw_numbers' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('API Numbers Characters')),
+      'api_pw_special' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('API Special Characters')),
+      'tac_pw_uppercase' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('TACACS Uppercase Characters')),
+      'tac_pw_lowercase' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('TACACS Lowcase Characters')),
+      'tac_pw_numbers' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('TACACS Numbers Characters')),
+      'tac_pw_special' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)->setName('TACACS Special Characters')),
     ]);
 
     if ($validation->failed()){
       $data['error']['status']=true;
       $data['error']['validation']=$validation->error_messages;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
 		unset($allParams['id']);
 
     $data['result'] = APIPWPolicy::where('id', 1)->update($allParams);
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 ####PASSWORD POLICY#####End
 ####SMTP SETTINGS######
-public function getSmtp($req,$res)
+public function getSmtp(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -111,13 +115,13 @@ public function getSmtp($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
@@ -125,10 +129,10 @@ public function getSmtp($req,$res)
 
   $data['smtp']['smtp_password'] = $this->generateRandomString( strlen($data['smtp']['smtp_password']) );
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 
-public function postSmtp($req,$res)
+public function postSmtp(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -140,44 +144,44 @@ public function postSmtp($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK SHOULD I STOP THIS?//START//
   if( $this->shouldIStopThis() )
   {
     $data['error'] = $this->shouldIStopThis();
-    return $res -> withStatus(400) -> write(json_encode($data));
+    return $this->json($response, $data, 400);
   }
   //CHECK SHOULD I STOP THIS?//END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
-  $validation = $this->validator->validate($req, [
-    'smtp_port' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->between(1, 64000)->setName('SMTP Port')),
+  $validation = $this->validator->validate($request, [
+    'smtp_port' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->between(1, 64000)->setName('SMTP Port')),
     'smtp_from' => v::when( v::nullType() , v::alwaysValid(), v::email()->setName('From Address')),
   ]);
 
   if ($validation->failed()){
     $data['error']['status']=true;
     $data['error']['validation']=$validation->error_messages;
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  $allParams = $req->getParams();
+  $allParams = $this->params($request);
 
   unset($allParams['id']);
 
   $data['result'] = APISMTP::where('id', 1)->update($allParams);
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 
-public function postSmtpTest($req,$res)
+public function postSmtpTest(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -189,46 +193,46 @@ public function postSmtpTest($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
-  $validation = $this->validator->validate($req, [
+  $validation = $this->validator->validate($request, [
     'smtp_test_email' => v::when( v::alwaysValid(), v::email()->notEmpty()->setName('Email') ),
   ]);
 
   if ($validation->failed()){
     $data['error']['status']=true;
     $data['error']['validation']=$validation->error_messages;
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  $allParams = $req->getParams();
+  $allParams = $this->params($request);
 
   $email = new EmailEngine(APISMTP::select()->find(1));
   $email->mail->addAddress($allParams['smtp_test_email']);
   $email->setTemplate();
   $data['result'] = $email->send();
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 ####SMTP SETTINGS######End
 ############
 ####TIME####
-public static function getTimeTimezoneName($params = ['id' => 0])
+public static function getTimeTimezoneName(array $params = ['id' => 0]): string
 {
   if($params['id'] == 0 ) return trim( shell_exec("timedatectl | grep 'Time zone:' | awk '{ print $3 }'"));
   $id = preg_replace('/[^0-9]/', '', $params['id']);
   return trim( shell_exec("timedatectl list-timezones | nl | sed '".$id."!d'" ) );
 }
 
-public function getTimeTimezones($req,$res)
+public function getTimeTimezones(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -240,16 +244,16 @@ public function getTimeTimezones($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
-  $byId = $req->getParam('byId');
+  $byId = $this->param($request, 'byId');
 
   if ( !empty($byId) ){
     $tempData = self::getTimeTimezoneName(['id'=>$byId]);
@@ -259,11 +263,11 @@ public function getTimeTimezones($req,$res)
     $tempTimezone = preg_split('/\s+/', trim( $tempData ) );
     $data['item'] = [ 'id' => $tempTimezone[0], 'text' =>$tempTimezone[1] ];
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  $search = preg_replace('/[^a-zA-Z0-9]/', '', $req->getParam('search'));
-  $page = $req->getParam('page');
+  $search = preg_replace('/[^a-zA-Z0-9]/', '', $this->param($request, 'search'));
+  $page = $this->param($request, 'page');
   $take = 10 * $page;
   $offset = (10 * ($page - 1)) + 1;
 
@@ -283,10 +287,10 @@ public function getTimeTimezones($req,$res)
     array_push($data['results'],$timezone);
   }
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 
-public function getTimeSettings($req,$res)
+public function getTimeSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -298,23 +302,23 @@ public function getTimeSettings($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
 
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
   $data['time'] = APISettings::select(['timezone', 'ntp_list'])->find(1);
   $timezone = preg_split('/\s+/', self::getTimeTimezoneName(['id' => $data['time']->timezone]) );
   $data['time']->timezone = [[ 'id' => $timezone[0], 'text' =>$timezone[1] ]];
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
-public static function applyTimeSettings( $allParams = [] )
+public static function applyTimeSettings( array $allParams = [] )
 {
   if ( !empty($allParams['timezone']) ){
     $timezoneName = trim( shell_exec( "timedatectl list-timezones |  sed '".$allParams['timezone']."!d'" ) );
@@ -353,7 +357,7 @@ public static function applyTimeSettings( $allParams = [] )
 
   return false;
 }
-public function postTimeSettings($req,$res)
+public function postTimeSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -365,45 +369,45 @@ public function postTimeSettings($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK SHOULD I STOP THIS?//START//
   if( $this->shouldIStopThis() )
   {
     $data['error'] = $this->shouldIStopThis();
-    return $res -> withStatus(400) -> write(json_encode($data));
+    return $this->json($response, $data, 400);
   }
   //CHECK SHOULD I STOP THIS?//END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
-  $validation = $this->validator->validate($req, [
-    'timezone' => v::when( v::nullType(), v::alwaysValid(), v::numeric()->notEmpty()->setName('Timezone') ),
+  $validation = $this->validator->validate($request, [
+    'timezone' => v::when( v::nullType(), v::alwaysValid(), v::numericVal()->notEmpty()->setName('Timezone') ),
   ]);
 
   if ($validation->failed()){
     $data['error']['status']=true;
     $data['error']['validation']=$validation->error_messages;
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  $allParams = $req->getParams();
+  $allParams = $this->params($request);
 
   if (self::applyTimeSettings($allParams)) {
     $data['result_ntp'] = trim( shell_exec( 'sudo '. TAC_ROOT_PATH . "/main.sh ntp get-config ") );
     $data['result'] = APISettings::where('id', 1)->update($allParams);
     sleep(1);
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  return $res -> withStatus(400) -> write(json_encode($data));
+  return $this->json($response, $data, 400);
 }
 
-public function getTimeStatus($req,$res)
+public function getTimeStatus(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -415,13 +419,13 @@ public function getTimeStatus($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
   $output = "command timedatectl :\n";
@@ -432,12 +436,12 @@ public function getTimeStatus($req,$res)
 
   $data['output'] = $output;
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 ####TIME SETTINGS######End
 #########################
 ####NETWORK SETTINGS######
-public function getInterfaceSettings($req,$res)
+public function getInterfaceSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -449,17 +453,17 @@ public function getInterfaceSettings($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
-  $allParams = $req->getParams();
+  $allParams = $this->params($request);
 
   $data['list'] = explode(PHP_EOL, CMDRun::init()->setCmd(TAC_ROOT_PATH . '/interfaces.py')->setAttr('-l')->get());
   if ($data['list'][0] == 'lo') unset($data['list'][0]);
@@ -517,10 +521,10 @@ public function getInterfaceSettings($req,$res)
     }
   }
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 
-public function postInterfaceSettings($req,$res)
+public function postInterfaceSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -532,27 +536,27 @@ public function postInterfaceSettings($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK SHOULD I STOP THIS?//START//
   if( $this->shouldIStopThis() )
   {
     $data['error'] = $this->shouldIStopThis();
-    return $res -> withStatus(400) -> write(json_encode($data));
+    return $this->json($response, $data, 400);
   }
   //CHECK SHOULD I STOP THIS?//END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
-  $validation = $this->validator->validate($req, [
+  $validation = $this->validator->validate($request, [
     'network_address' => v::when( v::alwaysValid(), v::ip()->notEmpty()->setName('IP Address') ),
     'network_address6' => v::when( v::alwaysValid(), v::oneOf(v::ip('*', FILTER_FLAG_IPV6), v::equals(''))->setName('IP Address') ),
-    'network_prefix6' => v::when( v::alwaysValid(), v::numeric()->between(1, 128)->setName('Prefix v6') ),
+    'network_prefix6' => v::when( v::alwaysValid(), v::numericVal()->between(1, 128)->setName('Prefix v6') ),
     'network_mask' => v::when( v::alwaysValid(), v::ip()->notEmpty()->setName('Mask') ),
     'network_gateway' => v::when( v::oneOf(v::nullType(), v::equals('')) , v::alwaysValid(), v::ip()->setName('Gateway')),
     'network_gateway6' => v::when( v::oneOf(v::nullType(), v::equals('')) , v::alwaysValid(), v::ip('*', FILTER_FLAG_IPV6)->setName('Gateway6')),
@@ -567,10 +571,10 @@ public function postInterfaceSettings($req,$res)
   if ($validation->failed()){
     $data['error']['status']=true;
     $data['error']['validation']=$validation->error_messages;
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  $allParams = $req->getParams();
+  $allParams = $this->params($request);
 
   // sudo /opt/tacacsgui/main.sh  'network' 'save' 'ens160' '10.6.20.101' '255.255.255.0' '--gateway' '10.6.20.1' '-nm' '8.8.8.8' '-y'
 
@@ -613,10 +617,10 @@ public function postInterfaceSettings($req,$res)
 
   //$data['result'] = trim( shell_exec('sudo ' . TAC_ROOT_PATH . '/main.sh network save '. $interface) );
 
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 
-public function getInterfaceList($req,$res)
+public function getInterfaceList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 {
   //INITIAL CODE////START//
   $data=array();
@@ -628,18 +632,18 @@ public function getInterfaceList($req,$res)
   #check error#
   if ($_SESSION['error']['status']){
     $data['error']=$_SESSION['error'];
-    return $res -> withStatus(401) -> write(json_encode($data));
+    return $this->json($response, $data, 401);
   }
   //INITIAL CODE////END//
   //CHECK ACCESS TO THAT FUNCTION//START//
   if(!$this->checkAccess(1, true))
   {
-    return $res -> withStatus(403) -> write(json_encode($data));
+    return $this->json($response, $data, 403);
   }
   //CHECK ACCESS TO THAT FUNCTION//END//
 
   $cmd = CMDRun::init()->setCmd(TAC_ROOT_PATH . '/interfaces.py')->setAttr('-l');
-  if ( $req->getParam('ip') == 1 ) $cmd->setAttr('--ip');
+  if ( $this->param($request, 'ip') == 1 ) $cmd->setAttr('--ip');
   $output = trim( shell_exec(TAC_ROOT_PATH . '/interfaces.sh list '. $ip) );
   $output = $cmd->get();
   $data['cmd'] = $cmd->showCmd();
@@ -647,7 +651,7 @@ public function getInterfaceList($req,$res)
   $key = array_search('lo', $data['list']);
   if (!$key) unset($data['list'][$key]);
   $data['list'] = array_values($data['list']);
-  return $res -> withStatus(200) -> write(json_encode($data));
+  return $this->json($response, $data, 200);
 }
 ####NETWORK SETTINGS######End
 #########################

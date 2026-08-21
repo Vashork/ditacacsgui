@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Models;
 
@@ -6,9 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class PostLog extends Model
 {
-	protected $table = 'post_log';
+	protected string $table = 'post_log';
 
-	protected $fillable = [
+	protected array $fillable = [
     'server',
     'date',
     'type',

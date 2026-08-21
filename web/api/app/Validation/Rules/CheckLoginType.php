@@ -4,7 +4,7 @@ namespace tgui\Validation\Rules;
 
 use Respect\Validation\Rules\AbstractRule;
 
-class checkLoginType extends AbstractRule
+class CheckLoginType extends AbstractRule
 {
 	private $flag;
 	private $type;

@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\TAC\TACCMD;
 
 use tgui\Models\TACCMD;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class TACCMDCtrl extends Controller
 {
@@ -13,7 +17,7 @@ class TACCMDCtrl extends Controller
 	#########	GET Add New Service	#########
 
 	#########	POST Add New CMD	#########
-	public function postAdd($req,$res)
+	public function postAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -25,36 +29,36 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\TACCMD' ),
-			'cmd' => v::when( v::cmdType(0, $req->getParam('type')), v::notEmpty()->setName('Main Command'), v::alwaysValid() ),
-			'junos' => v::when( v::cmdType(1, $req->getParam('type')), v::notEmpty()->setName('JunOS Commands'), v::alwaysValid() )
+			'cmd' => v::when( v::cmdType(0, $this->param($request, 'type')), v::notEmpty()->setName('Main Command'), v::alwaysValid() ),
+			'junos' => v::when( v::cmdType(1, $this->param($request, 'type')), v::notEmpty()->setName('JunOS Commands'), v::alwaysValid() )
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$args = $allParams['cmd_attr'];
 		unset($allParams['cmd_attr']);
 
@@ -75,13 +79,13 @@ class TACCMDCtrl extends Controller
 		$logEntry=array('action' => 'add', 'obj_name' => $data['cmd']['name'], 'obj_id' => $data['cmd']['id'], 'section' => 'tacacs cmd', 'message' => 208);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New CMD	###############END###########
 ################################################
 ########	Edit CMD	###############START###########
 	#########	GET Edit CMD	#########
-	public function getEdit($req,$res)
+	public function getEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -93,29 +97,29 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['cmd']=TACCMD::select()->where('id',$req->getParam('id'))->first();
+		$data['cmd']=TACCMD::select()->where('id',$this->param($request, 'id'))->first();
 		$data['cmd']->junos = explode(',', $data['cmd']->junos);
 		$data['cmd_attr'] = $this->db->table('tac_cmd_arg')->
 			select(['arg','action'])->orderBy('order','asc')->
-			where('tac_cmd_id',$req->getParam('id'))->get();
+			where('tac_cmd_id',$this->param($request, 'id'))->get();
 		$data['cmd']->cmd_attr = ($data['cmd_attr']) ? $data['cmd_attr'] : [];
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit CMD	#########
-	public function postEdit($req,$res)
+	public function postEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -127,42 +131,42 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'name' => v::notEmpty()->theSameNameUsed( '\tgui\Models\TACCMD', $req->getParam('id') ),
-			'cmd' => v::when( v::cmdType(0, $req->getParam('type')), v::notEmpty()->setName('Main Command'), v::alwaysValid() ),
-			'junos' => v::when( v::cmdType(1, $req->getParam('type')), v::notEmpty()->setName('JunOS Commands'), v::alwaysValid() )
+		$validation = $this->validator->validate($request, [
+			'name' => v::notEmpty()->theSameNameUsed( '\tgui\Models\TACCMD', $this->param($request, 'id') ),
+			'cmd' => v::when( v::cmdType(0, $this->param($request, 'type')), v::notEmpty()->setName('Main Command'), v::alwaysValid() ),
+			'junos' => v::when( v::cmdType(1, $this->param($request, 'type')), v::notEmpty()->setName('JunOS Commands'), v::alwaysValid() )
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$args = $allParams['cmd_attr'];
 		unset($allParams['cmd_attr']);
-		$tempId = $req->getParam('id');
+		$tempId = $this->param($request, 'id');
 
-		$data['save']=TACCMD::where('id',$req->getParam('id'))->
+		$data['save']=TACCMD::where('id',$this->param($request, 'id'))->
 			update($allParams);
 
 		$this->db->table('tac_cmd_arg')->where('tac_cmd_id', $tempId)->delete();
@@ -182,12 +186,12 @@ class TACCMDCtrl extends Controller
 		$logEntry=array('action' => 'edit', 'obj_name' => $allParams['name'], 'obj_id' => $id, 'section' => 'tacacs services', 'message' => 308);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit Service	###############END###########
 ################################################
 	#########	POST Edit CMD	#########
-	public function postEditType($req,$res)
+	public function postEditType(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -199,42 +203,42 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'type' => v::numeric(),
+		$validation = $this->validator->validate($request, [
+			'type' => v::numericVal(),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$data['result'] = $this->APIUsersCtrl::changeCmdType( $req->getParam('type') );
+		$data['result'] = $this->APIUsersCtrl::changeCmdType( $this->param($request, 'type') );
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit CMD	###############END###########
 ################################################
 ########	Delete CMD	###############START###########
 	#########	POST Delete CMD	#########
-	public function postDelete($req,$res)
+	public function postDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -246,38 +250,38 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['result']=TACCMD::where('id',$req->getParam('id'))->delete();
-		$data['id']=$req->getParam('id');
-		$data['name']=$req->getParam('name');
+		$data['result']=TACCMD::where('id',$this->param($request, 'id'))->delete();
+		$data['id']=$this->param($request, 'id');
+		$data['name']=$this->param($request, 'name');
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $req->getParam('name'), 'obj_id' => $req->getParam('id'), 'section' => 'tacacs cmd', 'message' => 408);
+		$logEntry=array('action' => 'delete', 'obj_name' => $this->param($request, 'name'), 'obj_id' => $this->param($request, 'id'), 'section' => 'tacacs cmd', 'message' => 408);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete Service	###############END###########
 ################################################
 #########	POST CSV 	#########
-	public function postCsv($req,$res)
+	public function postCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -289,13 +293,13 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
@@ -305,7 +309,7 @@ class TACCMDCtrl extends Controller
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_cmd');
 
 	  $f = fopen($path.$filename, 'w');
-		$idList = $req->getParam('idList');
+		$idList = $this->param($request, 'idList');
 		$array = [];
 		$array = ( empty($idList) ) ? TACCMD::select($columns)->get()->toArray() : TACCMD::select($columns)->whereIn('id', $idList)->get()->toArray();
 
@@ -316,13 +320,13 @@ class TACCMDCtrl extends Controller
 
 		$data['filename']=$filename;
 		sleep(3);
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	CSV 	###############END###########
 ################################################
 ######## Datatables ###############START###########
 	#########	POST Datatables	#########
-	public function postDatatables($req,$res)
+	public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -334,7 +338,7 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -346,11 +350,11 @@ class TACCMDCtrl extends Controller
 			$data['data'] = [];
 			$data['recordsTotal'] = 0;
 			$data['recordsFiltered'] = 0;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_cmd'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -375,7 +379,7 @@ class TACCMDCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	Service Datatables	###############END###########
@@ -383,7 +387,7 @@ class TACCMDCtrl extends Controller
 ################################################
 ########	List of Services	###############START###########
 	#########	GET List Services#########
-	public function getList($req,$res)
+	public function getList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -395,28 +399,28 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = TACCMD::select(['id','name AS text'])->where('type',0)->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		$query = TACCMD::select(['id','name as text'])->where('type',0);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -425,12 +429,12 @@ class TACCMDCtrl extends Controller
 
 		$data['results']=$query->orderBy('name')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	List of Services	###############END###########
 ################################################
 	#########	GET List Services#########
-	public function getListJunos($req,$res)
+	public function getListJunos(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -442,29 +446,29 @@ class TACCMDCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(13, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = TACCMD::select(['id','name AS text'])->where('type',1)->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = TACCMD::select(['id','name as text'])->where('type',1);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -473,7 +477,7 @@ class TACCMDCtrl extends Controller
 
 		$data['results']=$query->orderBy('name')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	List of Services	###############END###########
 ################################################

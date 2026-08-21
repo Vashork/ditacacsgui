@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\TAC\TACUserGrps;
 
 use tgui\Models\TACUsers;
@@ -8,6 +10,8 @@ use tgui\Models\TACUserGrps;
 use tgui\Models\APIPWPolicy;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class TACUserGrpsCtrl extends Controller
 {
@@ -15,7 +19,7 @@ class TACUserGrpsCtrl extends Controller
 	public function itemValidation($req = [], $state = 'add'){
 		$id = 0;
 		if (is_object($req)){
-			$id = ($state == 'edit') ? $req->getParam('id') : 0;
+			$id = ($state == 'edit') ? $req->getParsedBody()['id'] ?? null : 0;
 		}
 
 		$policy = APIPWPolicy::select()->first();
@@ -45,7 +49,7 @@ class TACUserGrpsCtrl extends Controller
 
 ################################################
 	#########	POST Add New User Group	#########
-	public function postUserGroupAdd($req,$res)
+	public function postUserGroupAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -57,31 +61,31 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->itemValidation($req);
+		$validation = $this->itemValidation($request);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$devices = $allParams['device_list'];
 		$services = $allParams['service'];
@@ -130,13 +134,13 @@ class TACUserGrpsCtrl extends Controller
 		$logEntry=array('action' => 'add', 'obj_name' => $group['name'], 'obj_id' => $group['id'], 'section' => 'tacacs user groups', 'message' => 204);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User Group	###############END###########
 ################################################
 ########	Edit User Group	###############START###########
 	#########	GET Edit User Group	#########
-	public function getUserGroupEdit($req,$res)
+	public function getUserGroupEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -148,18 +152,18 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['group']=TACUserGrps::select()->where('id',$req->getParam('id'))->first();
+		$data['group']=TACUserGrps::select()->where('id',$this->param($request, 'id'))->first();
 
 		$data['group']->acl = $this->db->table('tac_acl')->
 			select(['name as text','id'])->where('id',$data['group']->acl)->get();
@@ -169,26 +173,26 @@ class TACUserGrpsCtrl extends Controller
 
 		$data['group']['service'] = $this->db::table('tac_bind_service')->
 			leftJoin('tac_services as ts','ts.id','=','service_id')->
-			select(['ts.id as id', 'ts.name as text'])->where('tac_grp_id',$req->getParam('id'))->get();
+			select(['ts.id as id', 'ts.name as text'])->where('tac_grp_id',$this->param($request, 'id'))->get();
 
 		$data['group']['ldap_groups']=$this->db::table('ldap_bind')->
 			leftJoin('ldap_groups as ld','ld.id','=','ldap_id')->
-			select(['ld.cn as text', 'ld.id as id'])->where('tac_grp_id',$req->getParam('id'))->get();
-		// $data['group']['ldap_groups']=$this->db::table('ldap_bind')->select('ldap_id')->where('tac_grp_id',$req->getParam('id'))->pluck('ldap_id')->toArray();
+			select(['ld.cn as text', 'ld.id as id'])->where('tac_grp_id',$this->param($request, 'id'))->get();
+		// $data['group']['ldap_groups']=$this->db::table('ldap_bind')->select('ldap_id')->where('tac_grp_id',$this->param($request, 'id'))->pluck('ldap_id')->toArray();
 
 		$data['group']['device_list']=$this->db::table('tac_bind_dev')->
 			leftJoin('tac_devices as td','td.id','=','device_id')->
-			select(['td.name as text', 'td.id as id'])->where('group_id',$req->getParam('id'))->get();
+			select(['td.name as text', 'td.id as id'])->where('group_id',$this->param($request, 'id'))->get();
 
 		$data['group']['device_group_list']=$this->db::table('tac_bind_devGrp')->
 			leftJoin('tac_device_groups as tdg','tdg.id','=','devGroup_id')->
-			select(['tdg.name as text', 'tdg.id as id'])->where('group_id',$req->getParam('id'))->get();
+			select(['tdg.name as text', 'tdg.id as id'])->where('group_id',$this->param($request, 'id'))->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit User Group	#########
-	public function postUserGroupEdit($req,$res)
+	public function postUserGroupEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -200,25 +204,25 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$validation = $this->itemValidation($req, 'edit');
+		$validation = $this->itemValidation($request, 'edit');
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		if ( ! empty( $allParams['enable'] ) )
 		{
@@ -236,7 +240,7 @@ class TACUserGrpsCtrl extends Controller
 		unset($allParams['device_list']);
 		unset($allParams['ldap_groups']);
 
-		$data['save'] = TACUserGrps::where('id',$req->getParam('id'))->
+		$data['save'] = TACUserGrps::where('id',$this->param($request, 'id'))->
 			update($allParams);
 
 			$devices_bind = [];
@@ -276,13 +280,13 @@ class TACUserGrpsCtrl extends Controller
 		$logEntry=array('action' => 'edit', 'obj_name' => $name['name'], 'obj_id' => $id, 'section' => 'tacacs user groups', 'message' => 304);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit User Group	###############END###########
 ################################################
 ########	Delete User Group	###############START###########
 	#########	POST Delete User Group	#########
-	public function postUserGroupDelete($req,$res)
+	public function postUserGroupDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -294,39 +298,39 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$usrGrp = TACUserGrps::where('id',$req->getParam('id'))->first();
-		$data['result']=TACUserGrps::where('id',$req->getParam('id'))->delete();
+		$usrGrp = TACUserGrps::where('id',$this->param($request, 'id'))->first();
+		$data['result']=TACUserGrps::where('id',$this->param($request, 'id'))->delete();
 
 		$data['changeConfiguration']=$this->changeConfigurationFlag(['unset' => 0]);
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $usrGrp->name, 'obj_id' => $req->getParam('id'), 'section' => 'tacacs user groups', 'message' => 404);
+		$logEntry=array('action' => 'delete', 'obj_name' => $usrGrp->name, 'obj_id' => $this->param($request, 'id'), 'section' => 'tacacs user groups', 'message' => 404);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
-		// $data['footprints']=TACUsers::where([['group','=',$req->getParam('id')]])->update(['group' => '0']);
+		// $data['footprints']=TACUsers::where([['group','=',$this->param($request, 'id')]])->update(['group' => '0']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete User	Group###############END###########
 ################################################
 #########	POST CSV Device	#########
-	public function postUserGroupCsv($req,$res)
+	public function postUserGroupCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -338,13 +342,13 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
@@ -354,7 +358,7 @@ class TACUserGrpsCtrl extends Controller
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_user_groups');
 
 	  $f = fopen($path.$filename, 'w');
-		$idList = $req->getParam('idList');
+		$idList = $this->param($request, 'idList');
 		$array = [];
 		$array = ( empty($idList) ) ? TACUserGrps::select($columns)->get()->toArray() : TACUserGrps::select($columns)->whereIn('id', $idList)->get()->toArray();
 
@@ -365,13 +369,13 @@ class TACUserGrpsCtrl extends Controller
 
 		$data['filename']=$filename;
 		sleep(3);
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	CSV Device	###############END###########
 ################################################
 ########	User Group Datatables ###############START###########
 	#########	POST User Group Datatables	#########
-	public function postUserGroupDatatables($req,$res)
+	public function postUserGroupDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -383,7 +387,7 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -395,11 +399,11 @@ class TACUserGrpsCtrl extends Controller
 			$data['data'] = [];
 			$data['recordsTotal'] = 0;
 			$data['recordsFiltered'] = 0;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_user_groups'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -424,14 +428,14 @@ class TACUserGrpsCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	User Group Datatables	###############END###########
 ################################################
 ########	List User Group	###############START###########
 	#########	GET List User	Group#########
-	public function getUserGroupList($req,$res)
+	public function getUserGroupList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -443,36 +447,36 @@ class TACUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(5, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$extra = '';
-			if (!empty($req->getParam('extra'))) {
-				$extra = json_decode($req->getParam('extra'));
+			if (!empty($this->param($request, 'extra'))) {
+				$extra = json_decode($this->param($request, 'extra'));
 				if (@$extra->type == 'user'){
 					$data['extra'] = $extra;
 					$data['results'] = TACUserGrps::leftJoin('tac_bind_usrGrp as ug', 'ug.group_id', '=', 'tac_user_groups.id')->
 					select(['tac_user_groups.id as id','name AS text'])->orderBy('ug.order', 'asc')->
 					where('ug.user_id', $extra->id)->get();
-					return $res -> withStatus(200) -> write(json_encode($data));
+					return $this->json($response, $data, 200);
 				}
 			}
 
 			$data['results'] = TACUserGrps::select(['id','name AS text'])->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
@@ -480,7 +484,7 @@ class TACUserGrpsCtrl extends Controller
 		select(['tug.id as id','tug.name as text', 'tug.acl_match as acl_match', $this->db::raw('(SELECT COUNT(*) FROM ldap_bind WHERE tac_grp_id = tug.id) as ldap')]);
 		//leftJoin('ldap_bind as lb', 'lb.tac_grp_id','=','tug.id');
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -489,7 +493,7 @@ class TACUserGrpsCtrl extends Controller
 
 		$data['results']=$query->orderBy('name','asc')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 
 	}
 ########	List User Group	###############END###########

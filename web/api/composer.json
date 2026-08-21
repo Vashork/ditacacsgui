@@ -1,27 +1,75 @@
 {
+    "name": "tacacsgui/api",
+    "description": "TacacsGUI API - TACACS+ AAA Server with Web GUI",
+    "type": "project",
+    "license": "MIT",
     "require": {
-        "slim/slim": "^3.8",
-        "illuminate/database": "^5.5",
-        "respect/validation": "^1.1",
-        "slim/csrf": "^0.8.2",
-        "spomky-labs/otphp": "^10.0",
-        "bacon/bacon-qr-code": "^1.0",
-        "irazasyed/telegram-bot-sdk": "^2.0",
+        "php": ">=8.2",
+        "ext-json": "*",
+        "ext-pdo": "*",
+        "ext-mbstring": "*",
+        "slim/slim": "^4.12",
+        "slim/psr7": "^1.6",
+        "php-di/php-di": "^7.0",
+        "illuminate/database": "^10.0",
+        "respect/validation": "^2.2",
+        "guzzlehttp/guzzle": "^7.8",
+        "doctrine/dbal": "^3.8",
+        "spomky-labs/otphp": "^11.0",
+        "bacon/bacon-qr-code": "^2.0",
+        "irazasyed/telegram-bot-sdk": "^3.0",
         "php-smpp/php-smpp": "^1.2",
-        "doctrine/dbal": "^2.7",
-        "phpmailer/phpmailer": "^6.0",
-        "guzzlehttp/guzzle": "^6.3",
-        "webmozart/json": "^1.2",
-        "adldap2/adldap2": "^9.1",
-        "symfony/yaml": "^4.2",
-        "tuupola/slim-jwt-auth": "^3.3"
+        "phpmailer/phpmailer": "^6.8",
+        "adldap2/adldap2": "^10.0",
+        "symfony/yaml": "^6.4",
+        "tuupola/slim-jwt-auth": "^3.5",
+        "vlucas/phpdotenv": "^5.6",
+        "monolog/monolog": "^3.5",
+        "psr/log": "^1.0|^2.0|^3.0"
     },
-	"autoload": {
-		"psr-4": {
-			"tgui\\": "app"
-		}
-	},
-  "repositories": {
-    "packagist": { "url": "https://packagist.org", "type": "composer" }
-  }
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "phpstan/phpstan": "^1.10",
+        "squizlabs/php_codesniffer": "^3.9",
+        "friendsofphp/php-cs-fixer": "^3.50"
+    },
+    "autoload": {
+        "psr-4": {
+            "tgui\\": "app"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "tgui\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "cs-fix": "php-cs-fixer fix",
+        "cs-check": "php-cs-fixer fix --dry-run --diff"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "allow-plugins": {
+            "php-http/discovery": true
+        },
+        "audit": {
+            "abandoned": "report"
+        },
+        "policy": {
+            "advisories": {
+                "block": false
+            }
+        }
+    },
+    "policy": {
+        "advisories": {
+            "block": false
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

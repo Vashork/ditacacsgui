@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Controllers\Authentication;
 
@@ -8,7 +9,7 @@ use parser\Controllers\PostEngine\PostEngine;
 
 class AuthenticationController extends Controller
 {
-	public function parser()
+	public function parser(): mixed
 	{
 
 		$logLineArray=explode('|!|',$this->logLine);

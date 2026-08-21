@@ -1,14 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\API\APIUserGrps;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Models\APIUserGrps;
 use tgui\Controllers\Controller;
 use Respect\Validation\Validator as v;
 
 class APIUserGrpsCtrl extends Controller
 {
-	private function rightsToOneValue($array)
+	private function rightsToOneValue(array $array): int
 	{
 		$return=0;
 		for ($i=0; $i < count($array); $i++)
@@ -19,7 +23,7 @@ class APIUserGrpsCtrl extends Controller
 	}
 ###############################################
 	#########	POST Add New User Group	#########
-	public function postUserGroupAdd($req,$res)
+	public function postUserGroupAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -31,35 +35,35 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(8))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\APIUserGrps' ),
-			'rights' => v::numeric()->notEmpty()->min(1),//->arrayType(),//->adminRights(),
+			'rights' => v::numericVal()->notEmpty()->min(1),//->arrayType(),//->adminRights(),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$ldapGroups = $allParams['ldap_groups'];
 		unset($allParams['ldap_groups']);
@@ -83,13 +87,13 @@ class APIUserGrpsCtrl extends Controller
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User Group	###############END###########
 ################################################
 ########	Edit User Group	###############START###########
 	#########	GET Edit User Group	#########
-	public function getUserGroupEdit($req,$res)
+	public function getUserGroupEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -101,30 +105,30 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(8))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		$data['group']=APIUserGrps::select()->
-			where('id',$req->getParam('id'))->
+			where('id',$this->param($request, 'id'))->
 			first();
 
 		$data['group']['ldap_groups']=$this->db::table('ldap_bind')->
 			leftJoin('ldap_groups as ld','ld.id','=','ldap_id')->
-			select(['ld.cn as text', 'ld.id as id'])->where('api_grp_id',$req->getParam('id'))->get();
+			select(['ld.cn as text', 'ld.id as id'])->where('api_grp_id',$this->param($request, 'id'))->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit User Group	#########
-	public function postUserGroupEdit($req,$res)
+	public function postUserGroupEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 
 		//INITIAL CODE////START//
@@ -137,36 +141,36 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(8))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$validation = $this->validator->validate($req, [
-			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\APIUserGrps', $req->getParam('id') ),
-			'rights' => v::numeric()->notEmpty()->min(1),
-			'id' => v::numeric()->notEmpty()->min(1),
+		$validation = $this->validator->validate($request, [
+			'name' => v::noWhitespace()->notEmpty()->theSameNameUsed( '\tgui\Models\APIUserGrps', $this->param($request, 'id') ),
+			'rights' => v::numericVal()->notEmpty()->min(1),
+			'id' => v::numericVal()->notEmpty()->min(1),
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 
 		$ldapGroups = $allParams['ldap_groups'];
 		unset($allParams['ldap_groups']);
@@ -197,13 +201,13 @@ class APIUserGrpsCtrl extends Controller
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit User Group	###############END###########
 ################################################
 ########	Delete User Group	###############START##########
 	#########	POST Delete User Group	#########
-	public function postUserGroupDelete($req,$res)
+	public function postUserGroupDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -215,41 +219,41 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(8))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$data['result']=APIUserGrps::where('id',$req->getParam('id'))->delete();
-		$data['id']=$req->getParam('id');
-		$data['name']=$req->getParam('name');
+		$data['result']=APIUserGrps::where('id',$this->param($request, 'id'))->delete();
+		$data['id']=$this->param($request, 'id');
+		$data['name']=$this->param($request, 'name');
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $req->getParam('name'), 'obj_id' => $req->getParam('id'), 'section' => 'api user groups', 'message' => 306);
+		$logEntry=array('action' => 'delete', 'obj_name' => $this->param($request, 'name'), 'obj_id' => $this->param($request, 'id'), 'section' => 'api user groups', 'message' => 306);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
 		$data['backup_status'] = $this->APIBackupCtrl->apicfgSet();
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete User Group	###############END###########
 ################################################
 ########	User Group Datatables ###############START###########
 	#########	POST User Group Datatables	#########
-	public function postUserGroupDatatables($req,$res)
+	public function postUserGroupDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -261,7 +265,7 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -273,11 +277,11 @@ class APIUserGrpsCtrl extends Controller
 			$data['data'] = [];
 			$data['recordsTotal'] = 0;
 			$data['recordsFiltered'] = 0;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('api_user_groups'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -302,7 +306,7 @@ class APIUserGrpsCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	User Group Datatables	###############END###########
@@ -326,7 +330,7 @@ class APIUserGrpsCtrl extends Controller
 		[ 'name' => 'Add/Edit/Delete Tac Services', 'value' => '13'],
 	);
 	#########	POST User Group 	#########
-	public function postUserGroupRightsList($req,$res)
+	public function postUserGroupRightsList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -338,20 +342,20 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		$data['rights']=$this->rightsList;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	User Group Rights List	###############END###########
 ################################################
 ########	List User Group	###############START###########
 	#########	GET List User	Group#########
-	public function getUserGroupList($req,$res)
+	public function getUserGroupList(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -363,30 +367,30 @@ class APIUserGrpsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(8, true))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		///IF GROUPID SET///
-		if ($req->getParam('id') != null){
-			$id = explode(',', $req->getParam('id'));
+		if ($this->param($request, 'id') != null){
+			$id = explode(',', $this->param($request, 'id'));
 
 			$data['results'] = APIUserGrps::select(['id','name AS text'])->whereIn('id', $id)->get();
 			// if (  !count($data['results']) ) $data['results'] = null;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		//////////////////////
 		////LIST OF GROUPS////
 		$query = APIUserGrps::select(['id','name as text']);
 		$data['total'] = $query->count();
-		$search = $req->getParam('search');
+		$search = $this->param($request, 'search');
 
 		$query = $query->when( !empty($search), function($query) use ($search)
 			{
@@ -395,7 +399,7 @@ class APIUserGrpsCtrl extends Controller
 
 		$data['results']=$query->orderBy('name','asc')->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	List User Group	###############END###########
 ################################################

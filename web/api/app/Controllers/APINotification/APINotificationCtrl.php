@@ -1,6 +1,9 @@
 <?php
+declare(strict_types=1);
 namespace tgui\Controllers\APINotification;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Controllers\Controller;
 use tgui\Models\APINotification;
 use tgui\Models\PostLog;
@@ -10,7 +13,7 @@ use tgui\Services\CMDRun\CMDRun as CMDRun;
 
 class APINotificationCtrl extends Controller
 {
-  public function getSettings($req,$res)
+  public function getSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -22,14 +25,14 @@ class APINotificationCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1, true))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
@@ -38,9 +41,9 @@ class APINotificationCtrl extends Controller
     if ( empty($data['settings']->bad_authentication_email_list) ) $data['settings']->bad_authentication_email_list='';
     if ( empty($data['settings']->bad_authorization_email_list) ) $data['settings']->bad_authorization_email_list='';
     
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-  public function postSettings($req,$res)
+  public function postSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -52,26 +55,26 @@ class APINotificationCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
     //CHECK ACCESS TO THAT FUNCTION//START//
     if( ! $this->checkAccess(1) )
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $validation = $this->validator->validate($req, [
-      'bad_authentication_enable' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)),
-      'bad_authorization_enable' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(1)),
-      'bad_authentication_count' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(60)->setName('Bad Authentication Count')),
-      'bad_authorization_count' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(60)->setName('Bad Authorization Count')),
-      'bad_authentication_interval' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(30)->setName('Bad Authentication Interval')),
-      'bad_authorization_interval' => v::when( v::nullType() , v::alwaysValid(), v::numeric()->min(0)->max(30)->setName('Bad Authentication Interval')),
+    $validation = $this->validator->validate($request, [
+      'bad_authentication_enable' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)),
+      'bad_authorization_enable' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(1)),
+      'bad_authentication_count' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(60)->setName('Bad Authentication Count')),
+      'bad_authorization_count' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(60)->setName('Bad Authorization Count')),
+      'bad_authentication_interval' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(30)->setName('Bad Authentication Interval')),
+      'bad_authorization_interval' => v::when( v::nullType() , v::alwaysValid(), v::numericVal()->min(0)->max(30)->setName('Bad Authorization Interval')),
       'bad_authentication_email_list' => v::when( v::nullType() , v::alwaysValid(), v::arrayType()->each(v::oneOf(v::email(), v::equals(''))->setName('Email List'))->setName('Email List')),
       'bad_authorization_email_list' => v::when( v::nullType() , v::alwaysValid(), v::arrayType()->each(v::oneOf(v::email(), v::equals(''))->setName('Email List'))->setName('Email List')),
     ]);
@@ -79,7 +82,7 @@ class APINotificationCtrl extends Controller
     if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
     if ( isset($allParams['bad_authentication_email_list']) ) $allParams['bad_authentication_email_list'] = implode('; ',$allParams['bad_authentication_email_list']);
@@ -95,9 +98,9 @@ class APINotificationCtrl extends Controller
       }
     }
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-  public function postDatatables($req,$res)
+  public function postDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
 		$data=array();
@@ -109,13 +112,13 @@ class APINotificationCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('post_log', 'logging'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -144,9 +147,9 @@ class APINotificationCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-  public function postBufferDatatables($req,$res)
+  public function postBufferDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -158,13 +161,13 @@ class APINotificationCtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
     unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-    $params=$req->getParams(); //Get ALL parameters form Datatables
+    $params=$this->params($request); //Get ALL parameters form Datatables
 
     $columns = $this->APICheckerCtrl->getTableTitles('post_buffer', 'logging'); //Array of all columnes that will used
     array_unshift( $columns, 'id' );
@@ -184,6 +187,6 @@ class APINotificationCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
   }
 }

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace mavis\Controllers\LDAP;
 
@@ -16,7 +17,7 @@ class LDAP extends Controller
   private $ldap;
   private $ad;
   private $adUser;
-  private function dPrefix()
+  private function dPrefix(): string
   {
     $date = new \DateTime();
     return  $date->format('Y-m-d H:i:s') . ' LDAP Module. ';

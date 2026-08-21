@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\API\APIUsers;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Models\APIUsers;
 use tgui\Models\APIUserGrps;
 use tgui\Models\APIPWPolicy;
@@ -15,7 +19,7 @@ class APIUsersCtrl extends Controller
 ################################################
 ########	Add New User	###############START###########
 	#########	POST Add New User	#########
-	public function postUserAdd($req,$res)
+	public function postUserAdd(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -27,26 +31,26 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
 		$policy = APIPWPolicy::select()->first(1);
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'email' => v::when( v::nullType() , v::alwaysValid(), v::noWhitespace()->email()->setName('Email')),
 			'username' => v::noWhitespace()->notEmpty()->usernameAvailable(),
 			'group' => v::notEmpty(),//->adminRights(),
@@ -54,12 +58,12 @@ class APIUsersCtrl extends Controller
 					notContainChars()->
 					length($policy['api_pw_length'], 64)->
 					notEmpty()->
-					checkPassword($req->getParam('repassword'))->
+					checkPassword($this->param($request, 'repassword'))->
 					passwdPolicyUppercase($policy['api_pw_uppercase'])->
 					passwdPolicyLowercase($policy['api_pw_lowercase'])->
 					passwdPolicySpecial($policy['api_pw_special'])->
 					passwdPolicyNumbers($policy['api_pw_numbers']),
-			'repassword' => v::checkPassword($req->getParam('password'))->setName('Password Repeat'),
+			'repassword' => v::checkPassword($this->param($request, 'password'))->setName('Password Repeat'),
 		]);
 
 		$data['policy'] = $policy;
@@ -67,10 +71,10 @@ class APIUsersCtrl extends Controller
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		unset($allParams['repassword']);
 		$allParams['password'] = password_hash($allParams['password'], PASSWORD_DEFAULT);
 		$user = APIUsers::create($allParams);
@@ -89,13 +93,13 @@ class APIUsersCtrl extends Controller
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Add New User	###############END###########
 ################################################
 ########	Edit User	###############START###########
 	#########	GET Edit User	#########
-	public function getUserEdit($req,$res)
+	public function getUserEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -107,25 +111,25 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if( !$this->checkAccess(1) )
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 		$data['user']=APIUsers::leftJoin('api_user_groups as ug', 'ug.id','=','group')->
-			select(['api_users.*','ug.name as gname'])->where('api_users.id',$req->getParam('id'))->first();
+			select(['api_users.*','ug.name as gname'])->where('api_users.id',$this->param($request, 'id'))->first();
 		$data['user']->group = [['id' => $data['user']->group, 'text' => $data['user']->gname ]];
 		unset($data['user']->gname);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 	#########	POST Edit User	#########
-	public function postUserEdit($req,$res)
+	public function postUserEdit(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 
 		//INITIAL CODE////START//
@@ -138,7 +142,7 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 
 		//INITIAL CODE////END//
@@ -147,42 +151,42 @@ class APIUsersCtrl extends Controller
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if( !$this->checkAccess(1) )
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
-		$password = APIUsers::where('id', $req->getParam('id'))->first()->password;
+		$password = APIUsers::where('id', $this->param($request, 'id'))->first()->password;
 
 		$policy = APIPWPolicy::select()->first(1);
 
-		$validation = $this->validator->validate($req, [
+		$validation = $this->validator->validate($request, [
 			'email' => v::when( v::oneOf(v::nullType(), v::equals('')) , v::alwaysValid(), v::noWhitespace()->email()->notEmpty()->setName('Email')),
 			'password' => v::when( v::nullType() , v::alwaysValid(), v::noWhitespace()->
 					notContainChars()->
 					length($policy['api_pw_length'], 64)->
 					notEmpty()->
-					checkPassword($req->getParam('repassword'))->
+					checkPassword($this->param($request, 'repassword'))->
 					passwdPolicyUppercase($policy['api_pw_uppercase'])->
 					passwdPolicyLowercase($policy['api_pw_lowercase'])->
 					passwdPolicySpecial($policy['api_pw_special'])->
 					passwdPolicySame($policy['api_pw_same'], $password, 'api')->
 					passwdPolicyNumbers($policy['api_pw_numbers'])->setName('Password') ),
-			'repassword' => v::checkPassword($req->getParam('password')),
+			'repassword' => v::checkPassword($this->param($request, 'password')),
 			'group' => v::notEmpty()->checkAccess(7)->setName('Group')//->adminRights()->setName('Group')
 		]);
 
 		if ($validation->failed()){
 			$data['error']['status']=true;
 			$data['error']['validation']=$validation->error_messages;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		unset($allParams['repassword']);
 
 		if (!empty($allParams['password']) ) $allParams['password'] = password_hash($allParams['password'], PASSWORD_DEFAULT);
@@ -202,13 +206,13 @@ class APIUsersCtrl extends Controller
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Edit User	###############END###########
 ################################################
 ########	Delete User	###############START###########
 	#########	POST Delete User	#########
-	public function postUserDelete($req,$res)
+	public function postUserDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -220,47 +224,47 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		//CHECK SHOULD I STOP THIS?//START//
 		if( $this->shouldIStopThis() )
 		{
 			$data['error'] = $this->shouldIStopThis();
-			return $res -> withStatus(400) -> write(json_encode($data));
+			return $this->json($response, $data, 400);
 		}
 		//CHECK SHOULD I STOP THIS?//END//
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		if ($_SESSION['uid'] == $req->getParam('id'))
+		if ($_SESSION['uid'] == $this->param($request, 'id'))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 
-		$data['result']=APIUsers::where('id',$req->getParam('id'))->delete();
-		$data['id']=$req->getParam('id');
+		$data['result']=APIUsers::where('id',$this->param($request, 'id'))->delete();
+		$data['id']=$this->param($request, 'id');
 		$data['name
-		']=$req->getParam('name');
+		']=$this->param($request, 'name');
 
-		$logEntry=array('action' => 'delete', 'obj_name' => $req->getParam('name'), 'obj_id' => $req->getParam('id'), 'section' => 'api users', 'message' => 405);
+		$logEntry=array('action' => 'delete', 'obj_name' => $this->param($request, 'name'), 'obj_id' => $this->param($request, 'id'), 'section' => 'api users', 'message' => 405);
 		$data['logging']=$this->APILoggingCtrl->makeLogEntry($logEntry);
 
 		$data['backup_status'] = $this->APIBackupCtrl->apicfgSet();
 		if ( $this->APIBackupCtrl->apicfgSet() )
 		$data['backup'] = $this->APIBackupCtrl->makeBackup(['make' => 'apicfg']);
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Delete User	###############END###########
 ################################################
 ########	User Datatables ###############START###########
 	#########	POST User Datatables	#########
-	public function postUserDatatables($req,$res)
+	public function postUserDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -272,13 +276,13 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('api_users'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -303,14 +307,14 @@ class APIUsersCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	User Datatables	###############END###########
 ################################################
 ########	Get User Info	###############START###########
 	#########	GET User Info	#########
-	public function getUserInfo($req,$res)
+	public function getUserInfo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -322,14 +326,14 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
-		$data['decrypt'] = $req->getAttribute('decoded_token_data');
+		$data['decrypt'] = $request->getAttribute('decoded_token_data');
 
 		if ($data['decrypt']['id'] != $_SESSION['uid'] ){
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 
 		$data['user']=APIUsers::select()->where([
@@ -341,12 +345,12 @@ class APIUsersCtrl extends Controller
 		$data['token'] = JWT::encode(['id' => $data['user']->id, 'username' => $data['user']->username], "supersecretkeyyoushouldnotcommittogithub", "HS256");
 
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Get User Info	###############END###########
 ########	Get User Status	###############START###########
 	#########	GET User Status	#########
-	public function getUserStatus($req,$res)
+	public function getUserStatus(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -358,17 +362,17 @@ class APIUsersCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		$data['changeConfiguration']=$this->db->table('tac_global_settings')->select('changeFlag')->first()->changeFlag;
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 ########	Get User Status	###############END###########
 ######################################################
-	public static function changeCmdType($type = 0)
+	public static function changeCmdType(int $type = 0)
 	{
 		return APIUsers::where('id', $_SESSION['uid'])->update(['cmd_type' => $type]);
 	}

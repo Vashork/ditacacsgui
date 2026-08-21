@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Controllers;
 
@@ -21,7 +22,7 @@ class Controller
 		}
 	}
 
-	private function notificationSettingsCreate($value='')
+	private function notificationSettingsCreate($value=''): array
 	{
 		//file_put_contents('/opt/tgui_data/tmp_notification_settings.yaml', '{}');
 		$settings = $this->db->connection('api_settings')->table('api_notification')->select('bad_authentication_enable', 'bad_authorization_enable')->first();
@@ -32,7 +33,7 @@ class Controller
 		return $notification_settings;
 	}
 
-	public function notificationSettings($value='')
+	public function notificationSettings($value=''): array
 	{
 		if ( ! file_exists('/opt/tgui_data/tmp_notification_settings.yaml') ) {
 			return $this->notificationSettingsCreate();
@@ -44,7 +45,7 @@ class Controller
 		return $settings;
 	}
 
-	public function missLoggingCheck($type = 'authe')
+	public function missLoggingCheck($type = 'authe'): mixed
 	{
 		if ( !file_exists('/opt/tgui_data/parser') OR !file_exists('/opt/tgui_data/parser/missRules.yaml')) return false;
 		try {
@@ -58,7 +59,7 @@ class Controller
 			return $missConfig['tacacs'][$type];
 	}
 
-	public function missLoggingTry($username = '', $nac = '', $config = []){
+	public function missLoggingTry($username = '', $nac = '', $config = []): bool{
 		if ( empty($username) OR empty($config) )
 			return false;
 

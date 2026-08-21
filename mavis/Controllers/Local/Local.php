@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace mavis\Controllers\Local;
 
@@ -9,7 +10,7 @@ use \Respect\Validation\Validator as v;
 class Local extends Controller
 {
   private $user;
-  private function dPrefix()
+  private function dPrefix(): string
   {
     $date = new \DateTime();
     return  $date->format('Y-m-d H:i:s') . ' Local Module. ';
@@ -87,7 +88,7 @@ class Local extends Controller
     return true;
   }
 
-  private function validation($value='')
+  private function validation($value=''): string
   {
     $validation = '';
     $policy = $this->db->table('api_password_policy')->select()->first(1);

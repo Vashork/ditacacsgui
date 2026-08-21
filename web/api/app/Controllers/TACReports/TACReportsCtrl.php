@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace tgui\Controllers\TACReports;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Illuminate\Support\Facades\DB as DB;
 
 use tgui\Services\CMDRun\CMDRun as CMDRun;
@@ -18,7 +22,7 @@ class TACReportsCtrl extends Controller
 {
 	############################################
 	##########STATISTICS PLEASE#######SATART##
-	public function getGeneralReport($req,$res)
+	public function getGeneralReport(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -30,7 +34,7 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
@@ -51,14 +55,14 @@ class TACReportsCtrl extends Controller
 		/////////////NUMBER OF FAILED AUTH/////end//
 		$data['widgets'] = $this->db::select( $this->db::raw(" SELECT ".
 			" (SELECT COUNT(*) FROM tgui.api_settings where `update_signin` = 1) as update_, ".
-  		' (SELECT COUNT(*) FROM tgui.tac_users) as users, '.
-  		" (SELECT COUNT(*) FROM tgui.tac_users where `disabled` = '1') as users_disabled, ".
-  		' (SELECT COUNT(*) FROM tgui.tac_devices) as devices,'.
-  		" (SELECT COUNT(*) FROM tgui.tac_devices where `disabled` = '1') as devices_disabled, ".
-  		" (SELECT COUNT(*) FROM tgui_log.tac_log_authentication) as authe, ".
-  		" (SELECT COUNT(*) FROM tgui_log.tac_log_authorization) as autho, ".
-  		" (SELECT COUNT(*) FROM tgui_log.tac_log_accounting) as acc, ".
-  		" (SELECT COUNT(*) FROM tgui_log.tac_log_authentication where `date` between '".$weekTimeRange[0]."' and '".$weekTimeRange[1]."' and (`action` LIKE '%fail%') OR (`action` LIKE '%deny%') ) as authe_err ") );
+   		' (SELECT COUNT(*) FROM tgui.tac_users) as users, '.
+   		" (SELECT COUNT(*) FROM tgui.tac_users where `disabled` = '1') as users_disabled, ".
+   		' (SELECT COUNT(*) FROM tgui.tac_devices) as devices,'.
+   		" (SELECT COUNT(*) FROM tgui.tac_devices where `disabled` = '1') as devices_disabled, ".
+   		" (SELECT COUNT(*) FROM tgui_log.tac_log_authentication) as authe, ".
+   		" (SELECT COUNT(*) FROM tgui_log.tac_log_authorization) as autho, ".
+   		" (SELECT COUNT(*) FROM tgui_log.tac_log_accounting) as acc, ".
+   		" (SELECT COUNT(*) FROM tgui_log.tac_log_authentication where `date` between '".$weekTimeRange[0]."' and '".$weekTimeRange[1]."' and (`action` LIKE '%fail%') OR (`action` LIKE '%deny%') ) as authe_err ") );
 
 			$data['widgets'][0]->TACVER = TACVER;
 			$data['widgets'][0]->APIVER = APIVER;
@@ -69,11 +73,11 @@ class TACReportsCtrl extends Controller
 				)[1];
 			$data['widgets'][0]->ha = $this->getHaRole();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	##########STATISTICS PLEASE#######END##
 	################################################
-	public function getAuthChartData($req,$res)
+	public function getAuthChartData(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -85,7 +89,7 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		$data['time_range'] = [];
 
@@ -141,14 +145,14 @@ class TACReportsCtrl extends Controller
 		$data['autho']['step'] = ( $data['autho']['step'] < 50 ) ? 10 : round($data['autho']['step'] / 5);
 
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	public static function chartStep($max=1, $step=1)
 	{
 		return (round($max / 5) < $step ) ? $step : round($max / 5);
 	}
 
-	public function getTopAccess($req,$res)
+	public function getTopAccess(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -160,7 +164,7 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		$weekTimeRange=array(
@@ -169,7 +173,7 @@ class TACReportsCtrl extends Controller
 		);
 		$data['range']=$weekTimeRange;
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$allParams['users'] = ( !empty($allParams['users']) ) ? $allParams['users'] : 5;
 		$allParams['devices'] = ( !empty($allParams['devices']) ) ? $allParams['devices'] : 5;
 		//$allParams['devicesReload'] = ( !empty($allParams['devicesReload']) ) ? $allParams['devicesReload'] : 1;
@@ -194,9 +198,9 @@ class TACReportsCtrl extends Controller
 							"left join `tgui`.`tac_devices` as `dev` on `addr`.`id` = `dev`.`address` order by log.count desc;") );
 		}
 		//////////Top Devices///end//
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
-	public function getDaemonStatus($req,$res)
+	public function getDaemonStatus(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -208,7 +212,7 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 		$data['tacacsStatusCommand'] = 'sudo '.TAC_DEAMON.' status';
@@ -223,13 +227,13 @@ class TACReportsCtrl extends Controller
 		{
 			$data['tacacsStatus']=1;
 		}
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	################################################
 	################################################
 ########	Accounting Datatables ###############START###########
 	#########	POST Accounting Datatables	#########
-	public function postAccountingDatatables($req,$res)
+	public function postAccountingDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -241,13 +245,13 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_log_accounting', 'logging'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -348,7 +352,7 @@ class TACReportsCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	Accounting Datatables	###############END###########
@@ -356,7 +360,7 @@ class TACReportsCtrl extends Controller
 	################################################
 ########	Authentication Datatables ###############START###########
 	#########	POST Authentication Datatables	#########
-	public function postAuthenticationDatatables($req,$res)
+	public function postAuthenticationDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -368,13 +372,13 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_log_authentication', 'logging'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -468,7 +472,7 @@ class TACReportsCtrl extends Controller
 
 		$data['data'] = $tempData->get();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	Authentication Datatables	###############END###########
@@ -476,7 +480,7 @@ class TACReportsCtrl extends Controller
 	################################################
 ########	Authorization Datatables ###############START###########
 	#########	POST Authorization Datatables	#########
-	public function postAuthorizationDatatables($req,$res)
+	public function postAuthorizationDatatables(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -488,13 +492,13 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		unset($data['error']);//BEACAUSE DATATABLES USES THAT VARIABLE//
 
-		$params=$req->getParams(); //Get ALL parameters form Datatables
+		$params=$this->params($request); //Get ALL parameters form Datatables
 
 		$columns = $this->APICheckerCtrl->getTableTitles('tac_log_authorization', 'logging'); //Array of all columnes that will used
 		array_unshift( $columns, 'id' );
@@ -595,14 +599,14 @@ class TACReportsCtrl extends Controller
 
 		$data['data'] = $tempData->get()->toArray();
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 
 ########	Authorization Datatables	###############END###########
 ################################################
 ########	File Tree ###############START###########
 	#########	POST	#########
-	public function postFileTree($req,$res)
+	public function postFileTree(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -614,10 +618,10 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$root = '/var/log/tacacsgui';
 		if( !$root ) exit("ERROR: Root filesystem directory not set in jqueryFileTree.php");
 		$postDir = rawurldecode($root.(isset($allParams['dir']) ? $allParams['dir'] : null ));
@@ -646,13 +650,13 @@ class TACReportsCtrl extends Controller
 			}
 		}
 
-		return $res -> withStatus(200);
+		return $response -> withStatus(200);
 	}
 	########	File Tree	###############END###########
 	################################################
 	########	Delete Log ###############START###########
 	#########	POST	#########
-	public function postLogDelete($req,$res)
+	public function postLogDelete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 	{
 		//INITIAL CODE////START//
 		$data=array();
@@ -664,18 +668,18 @@ class TACReportsCtrl extends Controller
 		#check error#
 		if ($_SESSION['error']['status']){
 			$data['error']=$_SESSION['error'];
-			return $res -> withStatus(401) -> write(json_encode($data));
+			return $this->json($response, $data, 401);
 		}
 		//INITIAL CODE////END//
 
 		//CHECK ACCESS TO THAT FUNCTION//START//
 		if(!$this->checkAccess(1))
 		{
-			return $res -> withStatus(403) -> write(json_encode($data));
+			return $this->json($response, $data, 403);
 		}
 		//CHECK ACCESS TO THAT FUNCTION//END//
 
-		$allParams = $req->getParams();
+		$allParams = $this->params($request);
 		$period = '';
 		if (!preg_match('/^[0-9]\s(year[s]{0,1}|month[s]{0,1})', $allParams['period']))
 		{
@@ -689,7 +693,7 @@ class TACReportsCtrl extends Controller
 			$data['test23'] = $period;
 			$data['test232'] = $allParams['target'];
 			$data['error']['status']=true;
-			return $res -> withStatus(200) -> write(json_encode($data));
+			return $this->json($response, $data, 200);
 		}
 		$data['period'] = $period;
 		switch ($allParams['target']) {
@@ -707,11 +711,11 @@ class TACReportsCtrl extends Controller
 
 			default:
 				$data['error']=true;
-				return $res -> withStatus(200) -> write(json_encode($data));
+				return $this->json($response, $data, 200);
 				break;
 		}
 
-		return $res -> withStatus(200) -> write(json_encode($data));
+		return $this->json($response, $data, 200);
 	}
 	########	Delete Log ###############END###########
 }

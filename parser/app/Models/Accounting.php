@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Models;
 
@@ -6,9 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Accounting extends Model
 {
-	protected $table = 'tac_log_accounting';
+	protected string $table = 'tac_log_accounting';
 
-	protected $fillable = [
+	protected array $fillable = [
 		'server',
 		'date',
 		'NAS',

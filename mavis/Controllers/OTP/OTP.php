@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace mavis\Controllers\OTP;
 
@@ -10,7 +11,7 @@ use ParagonIE\ConstantTime\Base32;
 class OTP extends Controller
 {
   private $user;
-  private function dPrefix()
+  private function dPrefix(): string
   {
     $date = new \DateTime();
     return  $date->format('Y-m-d H:i:s') . ' OTP Module. ';

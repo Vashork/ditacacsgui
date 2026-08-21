@@ -1,6 +1,9 @@
 <?php
+declare(strict_types=1);
 namespace tgui\Controllers\APIHA;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Controllers\Controller;
 use tgui\Controllers\APIHA\HAGeneral;
 use tgui\Controllers\APIHA\HAMaster;
@@ -12,7 +15,7 @@ use Respect\Validation\Validator as v;
 class APIHACtrl extends Controller
 {
 
-  public function getSettings($req,$res)
+  public function getSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -24,13 +27,13 @@ class APIHACtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1, true))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
@@ -40,10 +43,10 @@ class APIHACtrl extends Controller
 		$data['master'] = $this->HASlave->getMaster();
     $data['rootpw_check'] = $this->HAGeneral->checkRoot();
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postSettings($req,$res)
+  public function postSettings(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -55,20 +58,20 @@ class APIHACtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $params = $req->getParams();
+    $params = $this->params($request);
 
-    $validation = $this->validator->validate($req, [
-      'role' => v::oneOf(v::notEmpty(), v::numeric()->between(0, 2)),
+    $validation = $this->validator->validate($request, [
+      'role' => v::oneOf(v::notEmpty(), v::numericVal()->between(0, 2)),
       'ip' => v::when( v::haRole() , v::ip()->setName('Master IP'), v::alwaysValid() ),
       'ip_m' => v::when( v::haRole($params['role'], 'slave') , v::notEmpty()->ip()->setName('Master IP'), v::alwaysValid() ),
       'psk' => v::when( v::haRole() , v::notEmpty()->setName('Preshared Key'), v::alwaysValid() ),
@@ -80,7 +83,7 @@ class APIHACtrl extends Controller
     if ($validation->failed()){
       $data['error']['status']=true;
       $data['error']['validation']=$validation->error_messages;
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     //$HA =  $this->HAGeneral;
@@ -92,7 +95,7 @@ class APIHACtrl extends Controller
     if (!$this->HAGeneral->checkRoot($params['rootpw'])){
       $data['error']['status']=true;
       $data['error']['validation']=['rootpw' => ['Incorrect MySQL Root Password!']];
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     switch ($params['role']) {
@@ -110,10 +113,10 @@ class APIHACtrl extends Controller
         break;
     }
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function getStatus($req,$res)
+  public function getStatus(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -125,13 +128,13 @@ class APIHACtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1, true))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
@@ -140,10 +143,10 @@ class APIHACtrl extends Controller
     // $data['psk'] = $psk;
     $data['status'] = $this->HAGeneral->getStatus($data['ha']['role']);
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postSlaveDel($req,$res)
+  public function postSlaveDel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -155,22 +158,22 @@ class APIHACtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $this->HAMaster->delSlave($req->getParam('ip'));
+    $this->HAMaster->delSlave($this->param($request, 'ip'));
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postSlaveUpdate($req,$res)
+  public function postSlaveUpdate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -182,17 +185,17 @@ class APIHACtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
     $this->HAGeneral->getFullConfig();
 
     $data['test'] = $allParams['ip'];
@@ -204,42 +207,42 @@ class APIHACtrl extends Controller
     );
 
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postSlaveUpdateDo($req,$res)
+  public function postSlaveUpdateDo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     $data = [ 'error' => false, 'messages' => [] ];
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $config = $this->HAGeneral->authorization($req->getParams());
+    $config = $this->HAGeneral->authorization($this->params($request));
 
     if (empty($config))
-      return $res -> withStatus(401) -> write(json_encode([]));
+      return $this->json($response, [], 401);
 
     $data['upgrade'] = $this->APIUpdateCtrl->gitPull();
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postInitFromSlave($req,$res)
+  public function postInitFromSlave(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     $data = [ 'error' => true, 'messages' => [] ];
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $config = $this->HAGeneral->authorization($req->getParams());
+    $config = $this->HAGeneral->authorization($this->params($request));
     if (empty($config))
-      return $res -> withStatus(401) -> write(json_encode($allParams['api'].$allParams['action'].$allParams['dbHash']));
-      //return $res -> withStatus(401) -> write(json_encode([]));
+      return $this->json($response, $allParams['api'].$allParams['action'].$allParams['dbHash'], 401);
+      //return $this->json($response, [], 401);
     if ($allParams['api'] !== APIVER){
       $data['messages'][] = 'Different versions used!';
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
     if (empty($allParams['key'])){
       $data['messages'][] = 'Where is a installation key?!';
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     switch ($allParams['action']) {
@@ -248,7 +251,7 @@ class APIHACtrl extends Controller
         $data['messages'][] = 'Slave Key: '. $allParams['key'];
         if (!$this->HAGeneral->checkActivation([ Controller::uuid_hash(), $allParams['key'] ])){
           $data['messages'][] = 'Error: Can\'t check activation';
-          return $res -> withStatus(200) -> write(json_encode($data));
+          return $this->json($response, $data, 200);
         }
         $this->HAMaster->setSlave(['status' => 0, 'api' => $allParams['api'], 'db' => $allParams['dbHash']]);
         $data['mysql'] = $this->HAMaster->getMysqlParams($config['psk']);
@@ -261,7 +264,7 @@ class APIHACtrl extends Controller
         $this->HAMaster->setSlave(['status' => 1, 'api' => $allParams['api'], 'db' => $allParams['dbHash']]);
         if ( $this->HAMaster->makeDump() !== '1'){
           $data['messages'][] = 'Can not create dump file!';
-          return $res -> withStatus(200) -> write(json_encode($data));
+          return $this->json($response, $data, 200);
         }
         $file = TAC_ROOT_PATH . '/temp/'.'tgui_dump.sql';
         header("X-Sendfile: $file");
@@ -276,7 +279,7 @@ class APIHACtrl extends Controller
         if ($data['db'] !== $allParams['dbHash']){
           $this->HAMaster->setSlave(['status' => 2, 'api' => $allParams['api'], 'db' => $allParams['dbHash']]);
           $data['messages'][] = 'Database error!';
-          return $res -> withStatus(200) -> write(json_encode($data));
+          return $this->json($response, $data, 200);
         }
         $this->HAMaster->setSlave(['status' => 99, 'api' => $allParams['api'], 'db' => $allParams['dbHash']]);
         break;
@@ -285,19 +288,19 @@ class APIHACtrl extends Controller
     $data['error'] = false;
     $this->changeConfigurationFlag(['unset' => 0]);
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postCheck($req,$res)
+  public function postCheck(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     $data = [ 'error' => true, 'messages' => [] ];
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $config = $this->HAGeneral->authorization($req->getParams());
+    $config = $this->HAGeneral->authorization($this->params($request));
     if (empty($config))
-      return $res -> withStatus(401) -> write(json_encode($allParams['api'].$allParams['action'].$allParams['dbHash'].$_SERVER['REMOTE_ADDR']));
-      //return $res -> withStatus(401) -> write(json_encode([]));
+      return $this->json($response, $allParams['api'].$allParams['action'].$allParams['dbHash'].$_SERVER['REMOTE_ADDR'], 401);
+      //return $this->json($response, [], 401);
     $data['db'] = $this->databaseHash()[0];
     $data['api'] = APIVER;
     $data['cfg'] = $config['cfg'];
@@ -308,7 +311,7 @@ class APIHACtrl extends Controller
       $this->HASlave->setMaster(['status' => 99, 'api' => $allParams['api'], 'db' => $allParams['dbHash'], 'emails' => $allParams['emails']]);
       if (!$data['status']) {
         if (!$this->HAGeneral->checkRoot())
-          return $res -> withStatus(200) -> write(json_encode($data));
+          return $this->json($response, $data, 200);
         $config['rootpw'] = $this->HAGeneral->getRootpw();
         $data['result'] = $this->HASlave->setup($config);
       }
@@ -316,19 +319,19 @@ class APIHACtrl extends Controller
 
     $data['error'] = false;
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postLoggingEvent($req,$res)
+  public function postLoggingEvent(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     $data = [ 'error' => false, 'messages' => [] ];
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $config = $this->HAGeneral->authorization($req->getParams());
+    $config = $this->HAGeneral->authorization($this->params($request));
 
     if (empty($config))
-      return $res -> withStatus(401) -> write(json_encode([]));
+      return $this->json($response, [], 401);
 
     $data['cmd'] = CMDRun::init()->setCmd('php')->setAttr( [
       TAC_ROOT_PATH."/parser/parser.php",
@@ -343,19 +346,19 @@ class APIHACtrl extends Controller
       $_SERVER['REMOTE_ADDR']
     ] )->get();
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
-  public function postApply($req,$res)
+  public function postApply(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data = [ 'error' => true, 'messages' => [] ];
 
-    $allParams = $req->getParams();
+    $allParams = $this->params($request);
 
-    $config = $this->HAGeneral->authorization($req->getParams());
+    $config = $this->HAGeneral->authorization($this->params($request));
     if (empty($config))
-      return $res -> withStatus(401) -> write([]);
+      return $this->json($response, [], 401);
     $data['apply'] = ['error'=>true, 'message'=>''];
     $data['test'] = ['error'=>true, 'message'=>''];
     $data['status'] = $this->HASlave->status($this->HAGeneral->psk, 'brief');
@@ -365,17 +368,17 @@ class APIHACtrl extends Controller
 
     if (!$data['status']){
       $data['apply']['message'] .= "\n Status out of sync!";
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     if ($data['db'] != $allParams['dbHash']){
       $data['apply']['message'] .= "\n Database out of sync!";
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     if ($allParams['api'] != APIVER){
       $data['apply']['message'] .= "\n Version doesn't match!";
-      return $res -> withStatus(200) -> write(json_encode($data));
+      return $this->json($response, $data, 200);
     }
 
     $data['test'] = $this->TACConfigCtrl->testConfiguration($this->TACConfigCtrl->createConfiguration());
@@ -388,7 +391,7 @@ class APIHACtrl extends Controller
     $data['cfg'] = $this->HAGeneral->config['cfg'];
 
 
-    return $res -> withStatus(200) -> write(json_encode($data));
+    return $this->json($response, $data, 200);
   }
 
 }

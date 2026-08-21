@@ -1,13 +1,18 @@
 <?php
+
+declare(strict_types=1);
+
 namespace tgui\Controllers\APIDownload;
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use tgui\Controllers\Controller;
 
 use tgui\Services\CMDRun\CMDRun as CMDRun;
 
 class APIDownloadCtrl extends Controller
 {
-  public function getDownloadCsv($req,$res)
+  public function getDownloadCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
   	//INITIAL CODE////START//
   	$data=array();
@@ -19,31 +24,31 @@ class APIDownloadCtrl extends Controller
   	#check error#
   	if ($_SESSION['error']['status']){
   		$data['error']=$_SESSION['error'];
-  		return $res -> withStatus(401) -> write(json_encode($data));
+  		return $this->json($response, $data, 401);
   	}
   	//INITIAL CODE////END//
-    $data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
+     $data['clear'] = shell_exec( TAC_ROOT_PATH . '/main.sh delete temp');
 
-    $file = str_replace("'","", urldecode( $req->getParam('file') ) );
-		if ( empty($file) ) {
-			echo '<h1>Error. File Parameter Inavailable</h1>';
-			return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
-		}
-		$path = TAC_ROOT_PATH . '/temp/';
-		//$path = '/backups/database/';
+     $file = str_replace("'","", urldecode( $this->param($request, 'file') ) );
+ 		if ( empty($file) ) {
+ 			echo '<h1>Error. File Parameter Inavailable</h1>';
+ 			return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
+ 		}
+ 		$path = TAC_ROOT_PATH . '/temp/';
+ 		//$path = '/backups/database/';
 
-		if ( !file_exists($path.$file) ) {
-			echo '<h1>Error. File '.$path . $file .' Not Found</h1>';
-			return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
-		}
-		$path = $path.$file;
-		header("X-Sendfile: $path");
-		header("Content-type: application/octet-stream");
-		header('Content-Disposition: attachment; filename="'.$file.'"');
-		exit(0);
-  }
+ 		if ( !file_exists($path.$file) ) {
+ 			echo '<h1>Error. File '.$path . $file .' Not Found</h1>';
+ 			return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
+ 		}
+ 		$path = $path.$file;
+ 		header("X-Sendfile: $path");
+ 		header("Content-type: application/octet-stream");
+ 		header('Content-Disposition: attachment; filename="'.$file.'"');
+ 		exit(0);
+ 	}
 
-  public function getDownloadLog($req,$res)
+  public function getDownloadLog(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -55,29 +60,29 @@ class APIDownloadCtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $file = str_replace("'","", urldecode( $req->getParam('file') ) );
-    $filename = (!empty( $req->getParam('filename') )) ? str_replace("'","", urldecode( $req->getParam('filename') ) ) : '';
+    $file = str_replace("'","", urldecode( $this->param($request, 'file') ) );
+    $filename = (!empty( $this->param($request, 'filename') )) ? str_replace("'","", urldecode( $this->param($request, 'filename') ) ) : '';
     if ( empty($file) ) {
       echo '<h1>Error. File Parameter Inavailable</h1>';
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = '/var/log/tacacsgui';
     //$path = '/backups/database/';
 
     if ( !file_exists($path.$file) ) {
       echo '<h1>Error. File '.$path . $file .' Not Found</h1>';
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = $path.$file;
     header("X-Sendfile: $path");
@@ -86,7 +91,7 @@ class APIDownloadCtrl extends Controller
     exit(0);
   }
 
-  public function getDlCm($req,$res)
+  public function getDlCm(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -98,30 +103,30 @@ class APIDownloadCtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $file = $filename = $req->getParam('name');
-    $folder = $req->getParam('group');
+    $file = $filename = $this->param($request, 'name');
+    $folder = $this->param($request, 'group');
     if ( $folder ) $file = $folder.'/'.$file;
     if ( empty($file) ) {
-      echo '<h1>Error. File Parameter Inavailable</h1>'.$req->getParam('name').$req->getParam('group');
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      echo '<h1>Error. File Parameter Inavailable</h1>'.$this->param($request, 'name').$this->param($request, 'group');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = '/opt/tgui_data/confManager/configs/';
     //$path = '/backups/database/';
 
     if ( !file_exists($path.$file) ) {
       echo '<h1>Error. File '.$path . $file .' Not Found</h1>';
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = $path.$file;
     header("X-Sendfile: $path");
@@ -130,7 +135,7 @@ class APIDownloadCtrl extends Controller
     exit(0);
   }
 
-  public function getCmHash($req,$res)
+  public function getCmHash(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
   {
     //INITIAL CODE////START//
     $data=array();
@@ -142,24 +147,24 @@ class APIDownloadCtrl extends Controller
     #check error#
     if ($_SESSION['error']['status']){
       $data['error']=$_SESSION['error'];
-      return $res -> withStatus(401) -> write(json_encode($data));
+      return $this->json($response, $data, 401);
     }
     //INITIAL CODE////END//
 
     //CHECK ACCESS TO THAT FUNCTION//START//
     if(!$this->checkAccess(1))
     {
-      return $res -> withStatus(403) -> write(json_encode($data));
+      return $this->json($response, $data, 403);
     }
     //CHECK ACCESS TO THAT FUNCTION//END//
 
-    $file = $req->getParam('show');
-    $filename = $req->getParam('name');
-    $hash = $req->getParam('hash');
+    $file = $this->param($request, 'show');
+    $filename = $this->param($request, 'name');
+    $hash = $this->param($request, 'hash');
 
     if ( empty($file) OR  empty($filename) OR empty($hash)) {
-      echo '<h1>Error. File Parameter Inavailable</h1>'.$req->getParam('name').$req->getParam('show').$req->getParam('hash');
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      echo '<h1>Error. File Parameter Inavailable</h1>'.$this->param($request, 'name').$this->param($request, 'show').$this->param($request, 'hash');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = '/opt/tacacsgui/temp/';
     //$path = '/backups/database/';
@@ -175,7 +180,7 @@ class APIDownloadCtrl extends Controller
       get();
     if ( !$filename AND !file_exists($path.$filename) ) {
       echo '<h1>Error. File '.$path . $filename .' Not Found</h1>';
-      return $res -> withStatus(404) -> withHeader('Content-type', 'text/html');
+      return $response -> withStatus(404) -> withHeader('Content-type', 'text/html');
     }
     $path = $path.$filename;
     header("X-Sendfile: $path");

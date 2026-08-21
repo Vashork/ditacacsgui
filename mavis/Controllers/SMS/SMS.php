@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace mavis\Controllers\SMS;
 
@@ -20,7 +21,7 @@ class SMS extends Controller
   private $user;
   private $tguiotp;
 
-  private function dPrefix()
+  private function dPrefix(): string
   {
     $date = new \DateTime();
     return  $date->format('Y-m-d H:i:s') . ' SMS Module. ';

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace parser\Controllers\PostEngine;
 
@@ -15,7 +16,7 @@ class PostEngine extends Controller
   private $engine;
   private $debug_flag = false;
   private $path_to_templates = __DIR__ .'/../../../../web/api/app/PHPMailer/EmailTemplates';
-  private function debug($message = '', $key = 'echo')
+  private function debug($message = '', $key = 'echo'): bool
   {
     if (! $this->debug_flag ) return false;
     switch ($key) {
@@ -41,7 +42,7 @@ class PostEngine extends Controller
   {
     // code...
   }
-  private function emailList($type = '')
+  private function emailList($type = ''): array
   {
     if (empty($type)) return [];
 
@@ -67,7 +68,7 @@ class PostEngine extends Controller
     //var_dump($result);
     return $result;
   }
-  public function run($params = [])
+  public function run($params = []): bool
   {
     if ( isset($params['type']) ){
       $check = $this->authAlertEnabled();
@@ -98,7 +99,7 @@ class PostEngine extends Controller
     $this->engine = $mail;
     return true;
   }
-  public function setAddresses($type = 'default')
+  public function setAddresses($type = 'default'): bool
   {
     if ($type == 'default') return false;
     $list = $this->emailList($type);
@@ -107,7 +108,7 @@ class PostEngine extends Controller
     }
     return true;
   }
-  public function sendAlert($data = [])
+  public function sendAlert($data = []): bool
   {
     $postLogData = $data;
     if ( !isset($data['type']) ) $data['type'] = '';
@@ -180,7 +181,7 @@ class PostEngine extends Controller
     if ( ! PostBuffer::where('user_ipaddr', '=', $data['NAC'])->count() )
     return false;
   }
-  private function postBufferCheckInterval($type = '')
+  private function postBufferCheckInterval($type = ''): bool
   {
     $this->debug('postBufferCheckInterval start');
     $this->debug('postBufferCheckInterval type: ' . $type);
