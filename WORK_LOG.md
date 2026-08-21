@@ -805,7 +805,106 @@ Our code is now PHP 8.2 + Slim 4, but the official installer `tacacsgui/tgui_ins
 
 **Decision: keep code concept (PHP 8.2 + Slim 4), rebuild install layer for Ubuntu 22.04/24.04 + PHP 8.2 + systemd + MySQL 8.0 + Nginx/PHP-FPM + committed `composer.lock`.** Do NOT copy ichantio's approach (old code + force-install).
 
-## Quick wins (this pass)
-- [ ] Commit `composer.lock` (remove from `.gitignore`) → reproducible builds (upstream & ichantio both lack it — we'd be ahead).
-- [ ] Disable phone-home `tacacsgui.com/updates` (default to localhost + `update_activated=0`).
-- [ ] Then: rebuild install layer (separate task).
+## Quick wins (this pass) — DONE
+- [x] Commit `composer.lock` (removed from `.gitignore`) → reproducible builds (upstream & ichantio both lack it — we're ahead).
+- [x] Disable phone-home `tacacsgui.com/updates` (both call-sites → `https://localhost/updates/`, `update_activated=0`).
+- Committed `6e7155a`, pushed to `ditacacsgui/master`.
+
+---
+
+## FINAL ARCHITECTURE (install layer) — LOCKED, 2026-08-21
+
+### Target stack (user-confirmed)
+| Component | Choice | Rationale |
+|---|---|---|
+| **OS** | Ubuntu 22.04 / 24.04 LTS | |
+| **PHP** | 8.2 (ondrej PPA) | our code target |
+| **Web server** | **Angie** + PHP-FPM | drop-in Nginx replacement, compatible config, active fork |
+| **DB** | **MySQL 8.0** | **HA (replication) is a hard requirement** + AAA write load. SQLite is DEV-ONLY (no replication, write-locking). |
+| **Service mgr** | native **systemd** units | upstart dead on 22.04+ |
+| **Python** | **venv** (`python3 -m venv`) | PEP 668; old `pip`+`apt remove python3-pip` approach broken |
+| **NTP** | **ntpsec** | `ntp` absent on 24.04 |
+| **tac_plus** | **2024 build + PCRE2** (from ichantio artifact) | vs 2019/PCRE |
+| **Composer** | **`composer install`** (committed lock) | reproducible; NEVER `--ignore-platform-req=php` |
+
+### HA architecture (CRITICAL — drives the design)
+- **Master + Slave** via **MySQL Replication** (asynchronous).
+- Both instances run as live auth servers (tac_plus daemon on each).
+- Log DB (`tgui_log`) lives on Master; config DB (`tgui`) is replicated.
+- Existing code already has `HAGeneral` / `HAMaster` / `HASlave` — installer must create the **replication user**, configure **binlog + server-id**, and run `CHANGE MASTER TO` on the slave.
+- `install.sh` takes `--role master|slave|standalone`.
+
+### Artifact strategy: BASE ON ICHANTIO (user decision)
+**Take ichantio's tested artifacts as the starting point and build our fork on top** (not from scratch):
+- **`tac_plus.tgz`** (2024-09-11 build, PCRE2/CRYPTO/CURL/SSL) — download from `ichantio/tacacsgui-installation`, vendor into our `install/`. Proven on 22.04/24.04.
+- **`mysql_config_editor` login-path pattern** for DB creds (copy their approach).
+- **`ntpsec` package choice**, **parser filter files** (`acc-filter.txt`/`autho-filter.txt`/`authe-filter.txt`).
+- **Angie vhost skeleton** — adapt from their Apache conf to Angie (Nginx-compatible) `fastcgi_pass` form.
+- **What we do NOT take from them:** the `--ignore-platform-req=php` trick, their un-modernized `composer.json`, no-lock policy, Apache/mod_php, their "everything works" claim. We keep our Slim 4 + committed `composer.lock` + Angie/PHP-FPM.
+
+### `install/` directory layout (planned)
+```
+install/
+├── README.md                    # install instructions (master/slave/standalone)
+├── install.sh                   # main installer (idempotent, --role flag)
+├── inc/
+│   ├── map.sh                   # paths / constants
+│   ├── func_common.sh           # pre-flight checks, utils
+│   ├── func_os.sh               # apt, Angie, PHP 8.2 PPA, ntpsec
+│   ├── func_db.sh               # MySQL 8.0, tgui + tgui_log, tgui_user, replication user
+│   ├── func_python.sh           # venv + pip deps
+│   ├── func_app.sh              # git clone, composer install (lock!), config.php
+│   ├── func_tacplus.sh          # build 2024 + PCRE2, install systemd unit
+│   ├── func_ha.sh               # master/slave: binlog, server-id, CHANGE MASTER TO
+│   └── conf/
+│       ├── angie/
+│       │   ├── tacacsgui.conf          # http vhost
+│       │   └── tacacsgui-ssl.conf      # https vhost
+│       ├── systemd/
+│       │   ├── tac_plus.service
+│       │   ├── tgui-parser.service
+│       │   └── tgui-selftest.{timer,service}
+│       ├── mysql/
+│       │   ├── tgui.cnf                # app DB config
+│       │   └── replication.cnf         # binlog, server-id
+│       └── php/
+│           └── tgui-fpm-pool.conf
+└── tac_plus.tgz               # vendored 2024 build (from ichantio)
+```
+
+### Key installer decisions
+- `install.sh` **idempotent** (safe to re-run).
+- `composer install` (NOT `update`) — uses committed `web/api/composer.lock`.
+- Angie vhost: standard `location / { try_files $uri /index.php$is_args$args; fastcgi_pass unix:/run/php/php8.2-fpm.sock; }`.
+- systemd `tac_plus.service`: `After=network.target`, `Restart=on-failure`.
+- HA mode: `--role master|slave|standalone` drives `func_ha.sh`.
+- Phone-home stays disabled (already fixed in code).
+
+---
+
+## CONTINUATION POINT (for next session, ~12h later)
+
+**Where we stopped:** All planning + decisions are LOCKED above. Nothing to re-decide.
+
+**Next session FIRST ACTIONS (in order):**
+1. **Create `install/` directory** with the layout above (empty scaffold first).
+2. **Download ichantio's `tac_plus.tgz`** (2024-09-11) from `ichantio/tacacsgui-installation` → vendor into `install/tac_plus.tgz`. Verify SHA, confirm it extracts to a `configure` script supporting `--with-pcre2`.
+3. **Pull ichantio's reference files** to adapt (NOT copy wholesale): `installer.sh`, `conf/www-data-sudo`, their MySQL/ntpsec/parser-filter snippets. Use as the base, rewrite for our stack (Angie not Apache, PHP 8.2 not 8.3, our Slim 4 code not their legacy code).
+4. **Write `install/inc/func_os.sh`** (Angie + PHP 8.2 PPA + ntpsec) — first real script, smallest surface.
+5. **Write `install/inc/func_db.sh`** (MySQL 8.0, two-DB split, replication user, `mysql_config_editor`).
+6. **Write `install/inc/func_ha.sh`** (master/slave/standalone).
+7. **Write `install.sh`** main entrypoint tying it together.
+8. **Test** on a clean Ubuntu 22.04/24.04 VM (or docker for a smoke pass) — verify: PHP 8.2 up, Angie serving, MySQL 8.0 up, tac_plus built+running, `composer install` succeeds, login works.
+9. **Commit + push** to `ditacacsgui`.
+
+**Remote:** `ditacacsgui` = `https://github.com/Vashork/ditacacsgui.git` (working repo, we push here). `origin` = `https://github.com/tacacsgui/tacacsgui.git` (upstream, DO NOT TOUCH).
+
+**Current HEAD:** `6e7155a` (both quick wins committed + pushed).
+
+**Do NOT re-open:** code modernization (Phase 1, DONE), Angular (no sources, frozen bundle — out of scope), HA-vs-SQLITE (HA confirmed, MySQL 8.0), Nginx-vs-Angie (Angie confirmed), artifact strategy (ichantio base confirmed). These are all decided.
+
+**Reference URLs (for the next session):**
+- ichantio installer: https://github.com/ichantio/tacacsgui-installation (file: `installer.sh`)
+- ichantio source: https://github.com/ichantio/tacacsgui (`original_src/` = diff baseline)
+- upstream installer (to replace): https://github.com/tacacsgui/tgui_install (file: `inc/install.sh`, `inc/src/func_general.sh`)
+- Our code: `web/api/` (Slim 4, PHP 8.2), `web/api/composer.lock` (committed).
