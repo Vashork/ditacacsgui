@@ -996,3 +996,175 @@ STATUS`); (3) Docker packaging milestone.
 - ichantio source: https://github.com/ichantio/tacacsgui (`original_src/` = diff baseline)
 - upstream installer (to replace): https://github.com/tacacsgui/tgui_install (file: `inc/install.sh`, `inc/src/func_general.sh`)
 - Our code: `web/api/` (Slim 4, PHP 8.2), `web/api/composer.lock` (committed).
+
+---
+
+## CHECKPOINT — 2026-08-21 (pause before OpenCode restart; resume here)
+
+> **STOP POINT:** user needs to restart OpenCode. Everything below is the exact
+> resume state. The two WSL distros may now be Stopped (normal — `wsl -d <name>`
+> auto-starts them). Do NOT trust IPs from an old probe; WSL2 NAT reassigns IPs
+> on restart. Re-measure both IPs with BOTH distros running before replication.
+
+### Done since the last status block above
+1. **App-layer MySQL schema bootstrap — DONE (commit `feaad17`).**
+   New `web/api/app/SchemaBuilderMysql.php` (`buildIfMissing()`): creates all
+   `tgui` + `tgui_log` tables from `APIDatabase::$tablesArr/_log` + seeds the
+   default admin, mirroring `APICheckerCtrl::createTable`/`setDefaultValues`.
+   Called from `web/api/bootstrap/app.php` (MySQL branch) right after
+   `bootEloquent()`, **before auth**, idempotent (no-op once `api_users` exists),
+   **slave-exempt** (replicas skip). Fixed a `getAllTables()` returning
+   `stdClass` crash in the guard. **Verified on the master:** dropped all tables
+   → `POST /api/auth/signin/` = HTTP 200 + JWT; 37 tables `tgui` + 7 `tgui_log`
+   created + seeded.
+
+2. **HA gap — RESOLVED (installer changes, NOT yet committed).**
+   Problem: `bootstrap/app.php` connects the **slave app as `tgui_ro`**
+   (password = `psk_s` from `ha-settings.yaml`), but the installer never created
+   `tgui_ro` nor wrote `ha-settings.yaml` (those were the GUI layer's job) → a
+   freshly-installed slave's web app could not connect to its DB.
+   Fix (Option A — installer makes the slave app work out-of-the-box):
+   - `install/inc/map.sh`: added `DB_RO_USER="tgui_ro"`, `HA_SETTINGS_FILE`, `HA_MASTER_FILE`.
+   - `install/inc/func_db.sh` `db_provision`: now creates **`tgui_ro@localhost`**
+     (SELECT-only on `tgui`+`tgui_log`), password `TGUI_MYSQL_ROPASS` persisted to
+     `/opt/tgui_data/ha/ro-pass` (resolution: pre-exported env → persisted file →
+     random 12). Created on ALL roles (harmless on master).
+   - `install/inc/func_ha.sh`: new `_ha_write_settings role psk_s` helper.
+     `ha_master` writes `ha-settings.yaml` (`role: 1`). `ha_slave` writes
+     `ha-settings.yaml` (`role: 2` + `psk_s` = the ro-pass) + `ha-master.yaml`
+     (`ip: <master>`).
+
+3. **CRITICAL perm bug found + fixed (NOT yet committed).**
+   `_ha_write_settings` originally did `chmod 600` (root:root) on
+   `ha-settings.yaml`. But the **app** (PHP-FPM, runs as `www-data`) reads that
+   file at runtime → `Yaml::parseFile` threw `File cannot be read` → **every
+   request 500'd**. Fix: `ha-settings.yaml` must be **`www-data:www-data` `640`**
+   (matches the GUI's own `HAGeneral::saveCfg` which writes it as www-data).
+   `ro-pass`/`repl-pass`/`app-pass` stay **root 600** (installer-only, never read
+   by the app). **This fix is in `func_ha.sh` in the working tree but UNCOMMITTED.**
+
+### Live WSL state right now
+- **MASTER = `Ubuntu-24.04`** (running): services `angie`/`php8.2-fpm`/`mysql`
+  active; `tgui_user`/`tgui_repl`/`tgui_ro` all exist; `ha-settings.yaml`
+  `role: 1` (www-data:640); login `tacgui`/`tacgui` = **HTTP 200 + JWT**.
+  Canonical passwords (from `/opt/tgui_data/ha/`):
+  - `app-pass` = `HxW9EbKa9sbR` (tgui_user)
+  - `repl-pass` = `T5DPtN29dkmr` (tgui_repl)
+  - `ro-pass` = `xmw7EkIaun9X` (tgui_ro)  ← NEW, created this session
+- **SLAVE = `Ubuntu-24.04-2`** (probing state): user `gdyupin` (uid 1000),
+  **NOPASSWD sudo OK**, systemd running, `/mnt/c` reachable, **MySQL NOT yet
+  installed**, `/opt/tacacsgui` not present. Nothing provisioned yet.
+- **⚠️ IP COLLISION (must handle first thing):** probed while the other distro
+  was stopped, **both reported `10.20.113.33`**. WSL2 NAT reuses the same pool;
+  a stopped distro releases its IP. With both running they will differ, but the
+  value is volatile across reboots. **Before `CHANGE MASTER TO`, hold the master
+  up and read the slave's real eth0 IP; use that as `TGUI_HA_MASTER_IP`.**
+
+### NEXT ACTIONS (in order) — resume here
+1. **Commit + push** the three uncommitted installer fixes (`map.sh`,
+   `func_db.sh`, `func_ha.sh`) to `ditacacsgui`. Suggested msg:
+   `install: create tgui_ro read-only user + write app-layer ha-settings.yaml (role/psk_s, www-data:640) so the slave web app connects out-of-the-box`.
+2. **Re-measure IPs with both distros up** (start master, start slave, read each
+   `hostname -I`). Record the master's real IP.
+3. **Provision the slave** `Ubuntu-24.04-2`. The full `install.sh --role slave`
+   hung >300s last time on the master (apt/composer/tac_plus are slow over WSL).
+   Two options:
+   - (a) Run the full installer with a long foreground hold + a generous timeout,
+     exporting `TGUI_MYSQL_APPPASS=HxW9EbKa9sbR TGUI_MYSQL_REPLPASS=T5DPtN29dkmr
+     TGUI_MYSQL_ROPASS=xmw7EkIaun9X TGUI_HA_MASTER_IP=<master-ip>`; OR
+   - (b) Targeted script (faster, recommended for WSL): apt `mysql-server` +
+     `angie` + `php8.2-fpm`; create `tgui`/`tgui_log` + the 3 users with the
+     shared passwords above; copy `conf/mysql/*.cnf`; `server-id=2`,
+     `read_only/super_read_only=ON`; `CHANGE MASTER TO <master-ip>
+     MASTER_USER=tgui_repl MASTER_PASSWORD=<repl-pass> MASTER_AUTO_POSITION=1` +
+     `START SLAVE`; deploy app code (tar pipe from `/mnt/c/D/_git/tacacsgui`,
+     `composer install`); write `.env` (DB_DRIVER=mysql, tgui_user/app-pass,
+     APP_URL); write `ha-settings.yaml` (`role: 2` + `psk_s: <ro-pass>`,
+     **www-data:640**); start angie/fpm/mysql; `angie -t`.
+   Either way the slave app connects as **`tgui_ro`** (read-only) — that is why
+   `ro-pass`/`psk_s` must be present.
+4. **Verify replication:** on slave `SHOW SLAVE STATUS\G` →
+   `Slave_IO_Running: Yes`, `Slave_SQL_Running: Yes`, `Seconds_Behind_Master: 0`.
+5. **Replication data test:** on master `INSERT` a marker row (e.g. into
+   `tgui.tac_users` or a scratch table), wait, confirm it appears on the slave
+   (read via `tgui_user`/root). Then test the **slave web app login**
+   (`tacgui`/`tacgui` over the slave's Angie) returns 200+JWT — proves the app
+   reads replicated data as `tgui_ro`.
+6. **Full re-verification** on both nodes (services, `angie -t`, login, slave
+   status).
+7. **Update wiki:** `credentials-and-ips.md` §2b (actual slave IP + ro-pass
+   `xmw7EkIaun9X` + SHOW SLAVE STATUS) + a `log.md` entry.
+8. **User-side (later, not the agent):** deploy to separate VMs + test switch +
+   LDAP; if OK, decide on Docker packaging (check for a build script).
+
+### WSL gotchas (re-confirmed this session)
+- **WSL kills a distro when its last process exits** — a backgrounded/`setsid`
+  installer dies when the `wsl` command returns. Hold the distro alive with a
+  long foreground `sleep` in the same `wsl` call while work runs, then poll from
+  a second quick `wsl` call. (This is why the master re-run "timed out": the
+  installer kept running but the shell was torn down; it had already created
+  `tgui_ro` + `ro-pass` before dying before `step_ha`.)
+- **PowerShell → WSL inline commands inject `\r` / mangle quotes** (`&&`, JSON,
+  `\"`). Always use **file-based scripts** written to
+  `C:\Users\gdyupin\AppData\Local\Temp\opencode\*.sh` then
+   `wsl -d <distro> -- sudo -n bash /mnt/c/Users/gdyupin/AppData/Local/Temp/opencode/<script>.sh`.
+   Never inline multi-line logic or JSON in the `wsl --` arg.
+ - **9p copy of `web/` is slow** — use a `tar` pipe:
+   `tar -cf - -C /mnt/c/D/_git/tacacsgui . | tar -xf - -C /opt/tacacsgui`.
+ - **Both WSL distros share ONE network namespace** — identical MAC
+   `bc:24:11:ce:82:13`, IP `10.20.113.33`, `lo 10.255.255.254/32`, gateway
+   `10.20.113.1`, even the same `eth2` interface index 4. The master's `mysqld`
+   holds `:3306`/`:33060`, its `angie` holds `:80`, so a second distro's
+   `mysqld`/`angie` fail with `Address already in use`. **Cross-distro
+   replication and a 2nd live stack are impossible in this WSL config** — a WSL2
+   limitation, not an installer bug. Real 2-node HA is on the user's VMs.
+
+---
+
+## RESUME COMPLETE — 2026-08-21 (after OpenCode restart)
+
+> The pause checkpoint above is SUPERSEDED by this block. Everything it listed
+> as "next actions" is either done or explicitly re-scoped.
+
+### Done this session
+1. **Committed + pushed the HA-gap installer fixes — `0004ac5`.** `tgui_ro` user
+   + `ha-settings.yaml`/`ha-master.yaml` + the `www-data:640` perm fix
+   (map.sh/func_db.sh/func_ha.sh).
+2. **WSL 2-node HA proven impossible (hard WSL2 limitation).** Both distros
+   running → identical MAC/IP/lo/gateway/eth2-index = one shared netns → port
+   collisions on `:80`/`:3306`/`:33060`. Slave `mysqld` + `angie` can't co-exist
+   with the master's. **Cross-distro replication is impossible here.** Real
+   2-node HA = user's separate VMs.
+3. **Slave BUILD proven correct** on `Ubuntu-24.04-2`: ondrej PPA (PHP 8.2 —
+   Ubuntu 24.04 ships only 8.3) + composer + Angie (repo line
+   `download.angie.software/angie/ubuntu/24.04 noble` + master's GPG key copied)
+   + all app/HA wiring install/configure clean. Only the live 2nd-instance start
+   is port-blocked. Master left healthy (role:1, login 200, 3 users).
+4. **Static analysis DONE — `9aef261` (committed + pushed).**
+   - **Removed 27 unused imports across 17 files** (isolated `no_unused_imports`
+     fix, no CRLF reflow). `php -l` clean, login still 200.
+   - **shellcheck 0.9.0:** mostly benign false-positives; **fixed SC2164**
+     `cd ... || return` in `func_tacplus.sh`.
+   - **PHPStan level 8 = 1705 findings** — dominated by legacy type-hint noise +
+     Eloquent `::where()` false positives (dynamic `__callStatic`). Real
+     dead-code (never-read props: `HAGeneral::$mainDir`/`$rootpw`,
+     `EmailEngine::$smtp_*`, `CMDRun::$TRIM`, `APIBackupCtrl::$listOf*`;
+     unreachable: `CheckAddress`, `PasswdPolicySpecial`, `Auth.php:226`)
+     catalogued but **not auto-fixed** (needs human sign-off — some are
+     intentional DI/framework patterns). Added `web/api/phpstan.neon` (level 8,
+     DI false-positives ignored) + `web/api/.php-cs-fixer.php`.
+5. **Management guide written — `MANAGEMENT.md`.** Web UI first-login
+   (`tacgui`/`tacgui`), add device (fields + shared `key`), LDAP (fields
+   `hosts`/`user`/`password`/`path`/`enabled` + test/check/bind flow), HA
+   (2-layer model), users/permissions, service commands, troubleshooting table.
+6. **Wiki updated:** `credentials-and-ips.md` §2b (WSL limitation + slave build
+   status), `log.md` entry, `index.md` status.
+
+### Next (user-side, NOT the agent)
+- Deploy master + slave to **separate VMs** (replication works there), test the
+  failover switch, connect real LDAP.
+- If all green → decide on Docker packaging (check for a build script).
+
+### Commits this session (all pushed to `ditacacsgui`)
+- `0004ac5` install: create tgui_ro read-only user + write app-layer ha-settings.yaml
+- `9aef261` static analysis: remove 27 unused imports across 17 files + harden tac_plus build cd
