@@ -909,9 +909,32 @@ install/
 - **ntpsec**: `apt-get install -y ntpsec; mkdir -p /var/log/ntpsec; chown root:ntpsec /var/log/ntpsec; chmod 775`.
 - Their filter files: only `conf/acc-filter.txt` has content; `autho-filter.txt`/`authe-filter.txt` are EMPTY (0 bytes).
 
+### DONE: all 9 `inc/func_*.sh` implemented (batches 1–4, 2026-08-21)
+Multi-agent (4 batches of 2 agents + main for finalize), held to ≤4 sessions (admin limit).
+```
+inc/func_os.sh        os_preflight, os_install          (Ubuntu 22/24 check, Angie, PHP 8.2 PPA, ntpsec)
+inc/func_db.sh        db_install, db_provision, db_loginpaths  (MySQL 8.0, 2 DBs, users, mysql_config_editor)
+inc/func_ha.sh        ha_setup->ha_master/ha_slave/ha_standalone  (GTID, CHANGE MASTER TO, TGUI_HA_MASTER_IP)
+inc/func_python.sh    python_setup                      (venv PEP-668, default-libmysqlclient-dev)
+inc/func_app.sh       app_deploy, app_compose, app_env  (clone/reuse, composer install lock, .env)
+inc/func_tacplus.sh   tacplus_build, tacplus_service    (vendored tgz, --with-pcre2, systemd unit)
+inc/func_web.sh       web_ssl, web_angie, web_fpm, web_activate  (self-signed cert, Angie, PHP-FPM)
+inc/func_sudoers.sh   sudoers_install                   (440 drop-in, visudo -cf, remove-on-failure)
+inc/func_finalize.sh  finalize_dirs, finalize_health    (data/log dirs, health checks)
+```
+`install.sh` now calls the real functions for all 9 steps — **no TODO stubs remain**.
+**Verified:** `bash -n` clean on every file; final stubbed dry-run (`--role master` and `--role slave`) walks all 9 steps, 0 TODO, exit 0.
+Bug fixed in batch 1: `TGUI_MYSQL_ROOTPASS` generation moved out of the "mysql not installed" guard so re-runs always have a value for `db_loginpaths`.
+
 ### CONTINUATION POINT (next session)
 
-**Where we are:** `install/` skeleton committed (configs + orchestrator + map.sh). The 9 step bodies (`inc/func_*.sh`) are the next work.
+**Where we are:** `install/` is **functionally complete in code** — orchestrator + all 9 `func_*.sh` + all config templates, committed and pushed (HEAD `34d0995`). NOT yet run on a real box.
+
+**Remaining work (only 2 items):**
+1. **Vendor `install/tac_plus.tgz`** — download from `ichantio/tacacsgui-installation` root (~8.6 MB, PCRE2 2024-09-11 build), verify it's a valid gzip extracting to a `tac_plus/` dir with a `configure` script. Commit it (or git-lfs). Until this exists, `tacplus_build` will (correctly) refuse with "vendor install/tac_plus.tgz first".
+2. **End-to-end VM test** on a clean Ubuntu 22.04/24.04: run `sudo ./install.sh --role master` on box A, `sudo TGUI_HA_MASTER_IP=<A> ./install.sh --role slave` on box B, then verify: Angie serving, PHP 8.2-FPM up, MySQL 8.0 up, login works, tac_plus built+running, and on B `SHOW SLAVE STATUS` → `Slave_IO_Running: Yes`, `Slave_SQL_Running: Yes`. Fix whatever the VM surfaces. Confirm the Angie apt package name + service name during this test.
+
+**Do NOT re-open:** code modernization (DONE), Angular (no sources), HA-vs-SQLITE (HA→MySQL 8.0), Nginx-vs-Angie (Angie), artifact strategy (ichantio base), session limit (4 = main + 3 agents, batches of 2 agents).
 
 **Next session FIRST ACTIONS (in order):**
 1. **Vendor `tac_plus.tgz`**: download from `ichantio/tacacsgui-installation` root → `install/tac_plus.tgz`. Verify it's a valid gzip (~8.6 MB), extracts to a `tac_plus/` dir containing a `configure` script. (Binary — commit or git-lfs per repo policy.)
