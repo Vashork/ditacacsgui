@@ -101,19 +101,26 @@ db_provision() {
 db_loginpaths() {
     # Store mysql_config_editor login-paths so later steps (and the app) can use
     # `mysql --login-path=tacacsgui` / `mysql --login-path=root` without any
-    # plaintext password on disk. Drives the interactive prompt with unbuffer+expect.
+    # plaintext password on the CLI.
+    #
+    # HOW: `mysql_config_editor set --password` normally opens an interactive
+    # prompt. We AVOID driving that prompt with expect/unbuffer (it hangs when
+    # there is no real TTY, e.g. under sudo/setsid in an unattended install).
+    # Instead we pass the password through the MYSQL_PWD environment variable,
+    # which mysql_config_editor reads non-interactively and then writes into the
+    # obfuscated ~/.mylogin.cnf. No TTY, no expect, fully deterministic.
+    #
+    # MYSQL_PWD is deprecated by MySQL for general use but is exactly the
+    # sanctioned non-interactive input channel for mysql_config_editor, and the
+    # password is only held in a short-lived env var of a root subshell.
 
     # root login-path (uses the root password generated in db_install).
-    sudo unbuffer expect -c "
-    spawn mysql_config_editor set --login-path=root --host=localhost --user=root --password
-    expect -nocase \"Enter password:\" {send \"${TGUI_MYSQL_ROOTPASS}\r\"; interact}
-    " > /dev/null
+    MYSQL_PWD="${TGUI_MYSQL_ROOTPASS}" sudo mysql_config_editor set \
+        --login-path=root --host=localhost --user=root --password
 
     # app login-path for tgui_user (uses the app password from db_provision).
-    sudo unbuffer expect -c "
-    spawn mysql_config_editor set --login-path=tacacsgui --host=localhost --user=${DB_USER} --password
-    expect -nocase \"Enter password:\" {send \"${TGUI_MYSQL_APPPASS}\r\"; interact}
-    " > /dev/null
+    MYSQL_PWD="${TGUI_MYSQL_APPPASS}" sudo mysql_config_editor set \
+        --login-path=tacacsgui --host=localhost --user=${DB_USER} --password
 
     echo "[tgui] login-paths stored."
 }

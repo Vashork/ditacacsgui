@@ -49,7 +49,11 @@ CONF_DIR="${INSTALLER_DIR}/inc/conf"
 # --- PHP-FPM / Angie / systemd drop-in destinations --------------------------
 FPM_POOL_DEST="/etc/php/${PHP_VERSION}/fpm/pool.d/tgui.conf"
 FPM_INI_DEST="/etc/php/${PHP_VERSION}/fpm/conf.d/80-tacacsgui.ini"
-ANGIE_SITES_DIR="/etc/angie/conf.d"
+# Angie 1.12.x includes vhosts from /etc/angie/http.d/*.conf (see `include`
+# directive in /etc/angie/angie.conf). NOT conf.d (that is the classic Nginx
+# path and does not exist in the Angie package). Using the wrong dir means our
+# vhost is never loaded and :80 keeps serving Angie's default page.
+ANGIE_SITES_DIR="/etc/angie/http.d"
 MYSQL_CONF_DIR="/etc/mysql/mysql.conf.d"
 SUDOERS_DIR="/etc/sudoers.d"
 SYSTEMD_UNIT_DIR="/etc/systemd/system"

@@ -10,7 +10,11 @@ python_setup() {
     # python3 + venv + build deps for mysqlclient.
     # default-libmysqlclient-dev provides the MySQL client libs mysqlclient
     # requires on 22.04/24.04 (libmysqlclient-dev / python3-mysqldb are dead on 24.04).
-    apt-get install -y python3 python3-venv python3-pip python3-dev default-libmysqlclient-dev build-essential
+    # pkg-config is REQUIRED: mysqlclient's setup.py shells out to
+    # `pkg-config --exists mysqlclient|libmysqlclient` to locate the client lib;
+    # without it the build fails with "Can not find valid pkg-config name".
+    apt-get install -y python3 python3-venv python3-pip python3-dev \
+        default-libmysqlclient-dev build-essential pkg-config
 
     # Create the venv (idempotent).
     local VENV_DIR="${TGUI_DATA}/venv"

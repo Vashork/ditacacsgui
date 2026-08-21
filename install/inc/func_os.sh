@@ -83,10 +83,19 @@ os_install() {
     fi
 
     # 2) apt repo: skip re-echo if the list file already exists (idempotent).
+    #
+    # IMPORTANT: Angie's mirror layout is NON-STANDARD. The URL path is keyed by
+    # the NUMERIC release version (e.g. 24.04), NOT the codename (noble):
+    #   https://download.angie.software/angie/ubuntu/<VERSION_ID>/dists/<CODENAME>/...
+    # So the deb line is:  deb <...>/ubuntu/<VERSION_ID> <CODENAME> main
+    # Using the codename in the URL path (the naive approach) 404s:
+    #   /angie/ubuntu/noble/Release -> 404  (wrong)
+    #   /angie/ubuntu/24.04/dists/noble/Release -> 200  (correct)
     if [ ! -f /etc/apt/sources.list.d/angie.list ]; then
-        local codename
+        local version_id codename
+        version_id=$(. /etc/os-release && echo "$VERSION_ID")
         codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
-        echo "deb https://download.angie.software/angie/ubuntu/ ${codename} main" > /etc/apt/sources.list.d/angie.list
+        echo "deb https://download.angie.software/angie/ubuntu/${version_id} ${codename} main" > /etc/apt/sources.list.d/angie.list
     fi
 
     # 3) Re-index so apt picks up the new repo before we install from it.

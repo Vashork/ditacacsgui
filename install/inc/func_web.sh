@@ -20,8 +20,21 @@ web_ssl() {
         # The vhost template uses the fixed filenames tacacsgui.local.cer / .key;
         # map the generated cert onto those fixed names. The operator can later
         # replace these with a real CA-issued cert.
-        cp -f "${TGUI_DATA_SSL}/${WEBSERVER_NAME}.cer" "${TGUI_DATA_SSL}/tacacsgui.local.cer"
-        cp -f "${TGUI_DATA_SSL}/${WEBSERVER_NAME}.key" "${TGUI_DATA_SSL}/tacacsgui.local.key"
+        #
+        # GUARD: when WEBSERVER_NAME is already "tacacsgui.local" (the default),
+        # the generated filenames ARE the fixed names, so a naive `cp` would copy
+        # a file onto itself and fail with "are the same file". Skip the copy in
+        # that case (and any other src==dst situation) by comparing inode+device.
+        local src_cer="${TGUI_DATA_SSL}/${WEBSERVER_NAME}.cer"
+        local src_key="${TGUI_DATA_SSL}/${WEBSERVER_NAME}.key"
+        local dst_cer="${TGUI_DATA_SSL}/tacacsgui.local.cer"
+        local dst_key="${TGUI_DATA_SSL}/tacacsgui.local.key"
+        if [ ! -e "$dst_cer" ] || [ "$(stat -c '%d:%i' "$src_cer")" != "$(stat -c '%d:%i' "$dst_cer")" ]; then
+            cp -f "$src_cer" "$dst_cer"
+        fi
+        if [ ! -e "$dst_key" ] || [ "$(stat -c '%d:%i' "$src_key")" != "$(stat -c '%d:%i' "$dst_key")" ]; then
+            cp -f "$src_key" "$dst_key"
+        fi
 
         chmod 600 "${TGUI_DATA_SSL}"/*.key 2>/dev/null || true
 
@@ -38,6 +51,15 @@ web_ssl() {
 web_angie() {
     # Ensure the Angie sites directory exists.
     mkdir -p "${ANGIE_SITES_DIR}"
+
+    # Disable the stock Angie "Welcome to Angie" default vhost. It ships with
+    # `listen 80 default_server` and would shadow our app vhost (especially
+    # when the client connects by IP / with a non-matching Host header). We
+    # rename it out of the include dir (idempotent; safe if already gone).
+    if [ -f "${ANGIE_SITES_DIR}/default.conf" ]; then
+        mv -f "${ANGIE_SITES_DIR}/default.conf" "${ANGIE_SITES_DIR}/default.conf.disabled"
+        echo "Disabled stock Angie default vhost (default.conf -> .disabled)"
+    fi
 
     # Always install the HTTP (:80) vhost, overwriting idempotently.
     install -m 644 "${CONF_DIR}/angie/tacacsgui.conf" "${ANGIE_SITES_DIR}/tacacsgui.conf"

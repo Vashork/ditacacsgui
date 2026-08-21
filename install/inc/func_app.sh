@@ -44,34 +44,49 @@ app_compose() {
     echo "composer install done (vendor present)"
 }
 
-# app_env: create web/api/.env from the template (idempotent) and set credentials.
+# app_env: make web/api/.env production-ready (idempotent) and set credentials.
 app_env() {
     local created=0
 
-    # Create .env from the template only if it is absent, so re-runs never
-    # clobber a customized .env.
+    # Create .env from the template only if it is absent.
+    #
+    # IMPORTANT: the repo SHIPS a committed web/api/.env (a local-dev file with
+    # DB_DRIVER=sqlite and placeholder DB_PASSWORD). If we only seds a file we
+    # created, that shipped dev .env would be left untouched and the app would
+    # try to use SQLite + a placeholder password -> the whole web tier fails.
+    # Therefore we ALWAYS apply the production credential overrides below,
+    # whether or not we created the file this run. This is the installer's job:
+    # turn the app's config into a working production (MySQL/HA) one.
     if [ ! -f "${TGUI_API_DIR}/.env" ]; then
         cp "${TGUI_API_DIR}/.env.example" "${TGUI_API_DIR}/.env"
         created=1
+        echo ".env created from .env.example"
     else
-        echo ".env already present, leaving it as-is"
+        echo ".env already present; applying production overrides to it"
     fi
 
-    # Only apply credential seds to a file we created this run, or when the
-    # operator explicitly opts in with TGUI_ENV_OVERWRITE=1.
-    if [ "${created}" -eq 1 ] || [ "${TGUI_ENV_OVERWRITE:-0}" = "1" ]; then
-        local jwt_secret
+    # Always (re)apply the production values. JWT_SECRET is only regenerated
+    # when we created the file (so re-runs don't invalidate existing tokens);
+    # DB creds / driver / URL are idempotent and safe to re-assert every run.
+    local jwt_secret
+    if [ "${created}" -eq 1 ]; then
         jwt_secret=$(openssl rand -hex 32)
-
-        sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" "${TGUI_API_DIR}/.env"
-        sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${TGUI_MYSQL_APPPASS}|" "${TGUI_API_DIR}/.env"
         sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${jwt_secret}|" "${TGUI_API_DIR}/.env"
-        sed -i "s|^APP_URL=.*|APP_URL=https://${WEBSERVER_NAME}|" "${TGUI_API_DIR}/.env"
     fi
+
+    # Force MySQL (never sqlite) for production/HA.
+    sed -i "s|^DB_DRIVER=.*|DB_DRIVER=mysql|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=mysql|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST:-localhost}|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_APP}|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_DATABASE_LOG=.*|DB_DATABASE_LOG=${DB_LOG}|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${TGUI_MYSQL_APPPASS}|" "${TGUI_API_DIR}/.env"
+    sed -i "s|^APP_URL=.*|APP_URL=https://${WEBSERVER_NAME}|" "${TGUI_API_DIR}/.env"
 
     # Restrict .env to the web user + group.
     chown www-data:www-data "${TGUI_API_DIR}/.env"
     chmod 640 "${TGUI_API_DIR}/.env"
 
-    echo ".env ready at ${TGUI_API_DIR}/.env"
+    echo ".env ready at ${TGUI_API_DIR}/.env (DB_DRIVER=mysql, user=${DB_USER})"
 }
