@@ -84,12 +84,41 @@ db_provision() {
     # the password is NOT changed) — that is correct: the persisted password
     # files under /opt/tgui_data/ha/ guarantee the value we reference here is
     # the SAME value the app's .env already has, so consistency is preserved.
+    # --- Read-only app password (TGUI_MYSQL_ROPASS) ---------------------------
+    # The slave web app connects to its DB as the read-only user tgui_ro
+    # (bootstrap/app.php uses username=tgui_ro, password=psk_s where psk_s is
+    # taken from ha-settings.yaml). That user + password must exist BEFORE the
+    # web tier is served, otherwise the very first request on the slave 500s.
+    # The GUI's HA-setup flow can later change psk_s; the installer creates a
+    # working default now. Resolution order mirrors the app/repl passwords:
+    #   1. Pre-exported TGUI_MYSQL_ROPASS wins.
+    #   2. Else a persisted /opt/tgui_data/ha/ro-pass file is reused.
+    #   3. Else a new random 12-char password is generated + persisted.
+    #
+    # NOTE: created on ALL roles (master/standalone too) — it is harmless there
+    # (the app connects as tgui_user on non-slaves) and it means a node that is
+    # later flipped to slave has tgui_ro already present.
+    if [ -z "${TGUI_MYSQL_ROPASS:-}" ]; then
+        if [ -f /opt/tgui_data/ha/ro-pass ]; then
+            TGUI_MYSQL_ROPASS=$(cat /opt/tgui_data/ha/ro-pass)
+        else
+            TGUI_MYSQL_ROPASS=$(openssl rand -base64 16 | tr -cd '[:alnum:]' | cut -c1-12)
+            umask 077
+            echo -n "$TGUI_MYSQL_ROPASS" > /opt/tgui_data/ha/ro-pass
+            chmod 600 /opt/tgui_data/ha/ro-pass
+        fi
+    fi
+    export TGUI_MYSQL_ROPASS
+
     mysql -u root -e "
         CREATE DATABASE IF NOT EXISTS ${DB_APP} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS ${DB_LOG} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${TGUI_MYSQL_APPPASS}';
         GRANT ALL PRIVILEGES ON ${DB_APP}.* TO '${DB_USER}'@'localhost';
         GRANT ALL PRIVILEGES ON ${DB_LOG}.* TO '${DB_USER}'@'localhost';
+        CREATE USER IF NOT EXISTS '${DB_RO_USER}'@'localhost' IDENTIFIED BY '${TGUI_MYSQL_ROPASS}';
+        GRANT SELECT ON ${DB_APP}.* TO '${DB_RO_USER}'@'localhost';
+        GRANT SELECT ON ${DB_LOG}.* TO '${DB_RO_USER}'@'localhost';
         CREATE USER IF NOT EXISTS '${DB_REPL_USER}'@'%' IDENTIFIED BY '${TGUI_MYSQL_REPLPASS}';
         GRANT REPLICATION SLAVE ON *.* TO '${DB_REPL_USER}'@'%';
         FLUSH PRIVILEGES;

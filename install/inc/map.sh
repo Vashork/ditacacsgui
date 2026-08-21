@@ -40,6 +40,15 @@ DB_APP="tgui"          # replicated (master -> slave)
 DB_LOG="tgui_log"      # master-only, NOT replicated
 DB_USER="tgui_user"
 DB_REPL_USER="tgui_repl"
+DB_RO_USER="tgui_ro"   # read-only app user (slave web app connects as this; password = psk_s)
+
+# --- HA settings (app-layer yaml, written by installer for slave) -------------
+# The app's bootstrap/app.php reads /opt/tgui_data/ha/ha-settings.yaml to decide
+# whether to connect as tgui_user (master) or tgui_ro (slave, password=psk_s).
+# The installer writes a minimal file so the slave web app works out-of-the-box;
+# the GUI's HA-setup flow can later update psk_s / re-wire replication.
+HA_SETTINGS_FILE="${TGUI_DATA_HA}/ha-settings.yaml"
+HA_MASTER_FILE="${TGUI_DATA_HA}/ha-master.yaml"
 
 # --- MySQL replication --------------------------------------------------------
 # server-id: master=1, slave=2 (installer may override per node)
