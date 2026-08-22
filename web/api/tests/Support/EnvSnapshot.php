@@ -80,4 +80,26 @@ final class EnvSnapshot
     {
         return $this->keys;
     }
+
+    /**
+     * The captured (current) env state for the managed keys, in the shape
+     * StateGuard expects for baseline comparison.
+     *
+     * @return array{env:array<string,string>,putenv:array<string,string>}
+     */
+    public function state(): array
+    {
+        $env = [];
+        $putenv = [];
+        foreach ($this->keys as $k) {
+            if (($_ENV[$k] ?? null) !== null) {
+                $env[$k] = (string) $_ENV[$k];
+            }
+            $v = getenv($k);
+            if ($v !== false && $v !== '') {
+                $putenv[$k] = (string) $v;
+            }
+        }
+        return ['env' => $env, 'putenv' => $putenv];
+    }
 }

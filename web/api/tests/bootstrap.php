@@ -11,18 +11,21 @@ declare(strict_types=1);
  *    repository path - in particular not web/api/storage/sqlite.
  *  - The two OS-temp SQLite files (default + logging) are created and
  *    verified by the shared seam DbSetup::prepareSqliteFile(); the
- *    production SchemaBuilderSqlite builds the schema into them (driven by
- *    TestAppFactory, not here).
- *  - DB_DRIVER=sqlite, TGUI_TEST_SQLITE_*, HA/TAC path env vars, and a known
- *    test-only JWT secret are forced in-process (web/api/.env on disk is
- *    never modified).
+ *    production SchemaBuilderSqlite builds the schema into them when the
+ *    app is first resolved.
+ *  - DB_DRIVER=sqlite, APP_ENV=testing, TGUI_TEST_*, HA/TAC path env vars,
+ *    and a known test-only JWT secret are forced in-process (web/api/.env
+ *    on disk is never modified).
  *  - Native sessions are pointed at a temp save_path with a unique name.
  *  - Teardown removes the temp root. Nothing else is touched.
  *
- * The Slim app itself is built by tgui\Tests\Support\TestAppFactory, which
- * assembles the production surface (DI bindings, middleware,
- * registerRoutes) WITHOUT requiring bootstrap/app.php - so the hardcoded
- * repo storage path in that file is never executed.
+ * The Slim app itself is BUILT BY THE REAL PRODUCTION bootstrap
+ * (web/api/bootstrap/app.php), required once through
+ * tgui\Tests\Support\TestAppFactory::app() under the APP_ENV=testing gate.
+ * That gate is what lets the bootstrap's sqlite branch resolve the two
+ * OS-temp files instead of its default repo storage path - so the
+ * production app-construction code (DI assembly, controller map, JWT
+ * config, middleware order, registerRoutes) is the code under test.
  */
 
 use tgui\Tests\Support\DbSetup;
@@ -53,6 +56,8 @@ register_shutdown_function($teardown);
 //    restore exact values instead of leaking between cases.
 $snapshot = new EnvSnapshot([
     'DB_DRIVER',
+    'APP_ENV',
+    'TGUI_TEST_ROOT',
     'TGUI_TEST_SQLITE_DEFAULT',
     'TGUI_TEST_SQLITE_LOG',
     'HA_SETTINGS_PATH',
@@ -68,6 +73,12 @@ $snapshot->apply([
     // The two OS-temp database files the factory's connections point at.
     'TGUI_TEST_SQLITE_DEFAULT' => $runRoot . '/tgui-test.sqlite',
     'TGUI_TEST_SQLITE_LOG' => $runRoot . '/tgui-test-log.sqlite',
+    // Test-only gate for the production bootstrap's sqlite seam: the two
+    // temp db files (above) are resolved by bootstrap/app.php only when
+    // APP_ENV=testing, and it fails closed if they escape TGUI_TEST_ROOT
+    // (the per-run temp root - the repo path can never satisfy the gate).
+    'APP_ENV' => 'testing',
+    'TGUI_TEST_ROOT' => $runRoot,
     // HA/TAC path env vars point at nonexistent temp locations so
     // constants.php resolves them inside the isolated root (the app boots
     // 'standalone' without touching /opt/tgui_data or /opt/tacacsgui).
@@ -89,5 +100,11 @@ foreach (['TGUI_TEST_SQLITE_DEFAULT', 'TGUI_TEST_SQLITE_LOG'] as $key) {
 // 5. Unique native-session configuration (name/save path) in this process.
 IsolatedEnvironment::configureTestSession($runRoot);
 
-// 6. Expose the run context to tests.
+// 6. Seed the session superglobal (PHPUnit does not start a native session;
+//    StateGuard's baseline and restoreSuperglobals() manage $_SESSION and
+//    $_COOKIE across cases, so both must exist from the start).
+$_SESSION = [];
+$_COOKIE = [];
+
+// 7. Expose the run context to tests.
 IsolatedEnvironment::setRunContext($runRoot, $snapshot);

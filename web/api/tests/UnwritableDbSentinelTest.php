@@ -57,11 +57,11 @@ final class UnwritableDbSentinelTest extends TestCase
         // The only sqlite paths in the environment are the two isolated
         // temp files; there is no env path that could redirect the app to
         // repo storage or /opt.
-        $root = (string) IsolatedEnvironment::runRoot();
-        $def = (string) ($_ENV['TGUI_TEST_SQLITE_DEFAULT'] ?? '');
-        $log = (string) ($_ENV['TGUI_TEST_SQLITE_LOG'] ?? '');
-        $this->assertStringStartsWith($root, str_replace('\\', '/', $def));
-        $this->assertStringStartsWith($root, str_replace('\\', '/', $log));
+        $root = str_replace('\\', '/', (string) IsolatedEnvironment::runRoot());
+        $def = str_replace('\\', '/', (string) ($_ENV['TGUI_TEST_SQLITE_DEFAULT'] ?? ''));
+        $log = str_replace('\\', '/', (string) ($_ENV['TGUI_TEST_SQLITE_LOG'] ?? ''));
+        $this->assertStringStartsWith($root, $def);
+        $this->assertStringStartsWith($root, $log);
         $this->assertSame('sqlite', getenv('DB_DRIVER'));
     }
 }

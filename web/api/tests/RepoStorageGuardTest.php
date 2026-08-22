@@ -59,10 +59,10 @@ final class RepoStorageGuardTest extends TestCase
         // 2. Snapshot the repo storage state before any app activity.
         [$preExists, $preHashes] = self::snapshot();
 
-        // 3. Build the app and force both live connections open (the
-        //    rejected harness is exactly where the repo dir was recreated:
-        //    the hardcoded sqlite branch of bootstrap/app.php ran during
-        //    this step).
+        // 3. Build the app (the REAL production bootstrap runs here) and
+        //    force both live connections open. The rejected harness
+        //    recreated the repo dir exactly at this step (its own bootstrap
+        //    ran the hardcoded sqlite branch of bootstrap/app.php).
         $app = TestAppFactory::app();
         $this->assertInstanceOf(\Slim\App::class, $app);
         $capsule = $app->getContainer()->get('db');

@@ -7,223 +7,197 @@ namespace tgui\Tests\Support;
 use RuntimeException;
 
 /**
- * Per-run isolated environment for integration tests (Task 2 harness).
+ * Isolated environment management for the Task 2 integration harness.
  *
- * Responsibilities (OS-temp only - this class never references a repo path):
- *  - create a unique temp root under the OS temp dir (fail-closed);
- *  - point native sessions at a unique temp save_path with a unique name;
- *  - expose the known test-only JWT secret (non-placeholder constant);
- *  - capture/restore the env+superglobals a test case may touch, so no
- *    state leaks between cases;
- *  - trap-safe recursive tree removal for teardown.
+ * All filesystem activity of the harness happens under ONE per-run OS-temp
+ * root (created via IsolatedEnvironment::createTempRoot). This class never
+ * touches repository paths.
  */
 final class IsolatedEnvironment
 {
     /**
-     * Known test-only JWT secret. Fixed and non-placeholder so tests can
-     * mint/verify tokens deterministically. NOT a credential: it only signs
-     * test-process tokens and is never used in production.
+     * Known, non-credential test-only JWT secret. It is a placeholder value
+     * with no relationship to any deployment's real secret.
      */
-    public const TEST_JWT_SECRET = 'tgui-phpunit-test-secret-0123456789abcdef-DO-NOT-USE-IN-PROD';
+    public const TEST_JWT_SECRET = 'tgui-phpunit-test-secret-not-a-credential';
 
     private static ?string $runRoot = null;
-    private static ?string $sessionName = null;
-    private static ?EnvSnapshot $snapshot = null;
+    private static ?EnvSnapshot $envSnapshot = null;
 
-    /** @return string the per-process run root (throws before bootstrap) */
-    public static function runRoot(): string
+    /**
+     * Create the per-run temp root under the OS temp dir, sweeping any
+     * stale harness roots first. A hard kill of a previous run leaves its
+     * root behind (the shutdown hook cannot run after SIGKILL) - the NEXT
+     * run's sweep is the only cleanup; that is the documented, expected
+     * behavior.
+     *
+     * @throws RuntimeException fail-closed on any creation problem
+     */
+    public static function createTempRoot(string $prefix, int $attempts = 5): string
     {
-        if (self::$runRoot === null) {
-            throw new RuntimeException('IsolatedEnvironment::runRoot() called before tests/bootstrap.php set it.');
+        self::sweepStaleRoots($prefix);
+
+        $base = (string) sys_get_temp_dir();
+        for ($i = 0; $i < max(1, $attempts); $i++) {
+            $name = $prefix . '-' . bin2hex(random_bytes(4));
+            $path = $base . DIRECTORY_SEPARATOR . $name;
+            if (@mkdir($path, 0777, true)) {
+                if (is_dir($path) && is_writable($path)) {
+                    return $path;
+                }
+                @rmdir($path);
+            }
+            // 9p / network temp dirs can lag on unlink; retry briefly.
+            usleep(50000);
         }
-        return self::$runRoot;
+        throw new RuntimeException('IsolatedEnvironment: cannot create temp root under ' . $base);
+    }
+
+    /** Remove leftover roots of the same harness from previously killed runs. */
+    public static function sweepStaleRoots(string $prefix): void
+    {
+        $base = (string) sys_get_temp_dir();
+        if (!is_dir($base)) {
+            return;
+        }
+        foreach (new \DirectoryIterator($base) as $it) {
+            if (!$it->isDir() || !str_starts_with((string) $it->getFilename(), $prefix . '-')) {
+                continue;
+            }
+            if ($it->getFilename() === (string) basename((string) self::$runRoot)) {
+                continue; // never sweep the live run root
+            }
+            self::removeTree($it->getPathname());
+        }
     }
 
     public static function setRunContext(string $runRoot, ?EnvSnapshot $snapshot = null): void
     {
         self::$runRoot = $runRoot;
-        self::$snapshot = $snapshot;
+        if ($snapshot !== null) {
+            self::$envSnapshot = $snapshot;
+        }
     }
 
-    /** @return ?EnvSnapshot the bootstrap's env snapshot (null before bootstrap) */
-    public static function snapshot(): ?EnvSnapshot
+    /** @throws RuntimeException when no run context has been established */
+    public static function runRoot(): string
     {
-        return self::$snapshot;
+        if (self::$runRoot === null) {
+            throw new RuntimeException('IsolatedEnvironment: no run context (bootstrap not run?).');
+        }
+        return self::$runRoot;
     }
 
-    /**
-     * Create the per-run temp root under the OS temp dir. Fails closed
-     * after $retries attempts (9p can transiently fail with ENOSPC).
-     *
-     * @param string $prefix directory name prefix (run id appended by caller)
-     * @param int $retries bounded retry count
-     * @return string the created directory (absolute, forward slashes)
-     * @throws RuntimeException when creation is impossible
-     */
-    public static function createTempRoot(string $prefix, int $retries = 3): string
+    /** @return EnvSnapshot|null the pre-test env snapshot (if captured) */
+    public static function envSnapshot(): ?EnvSnapshot
     {
-        $base = (string) (getenv('TEMP') ?: getenv('TMP') ?: sys_get_temp_dir());
-        $base = rtrim(str_replace('\\', '/', $base), '/');
-        if ($base === '' || !is_dir($base) || !is_writable($base)) {
-            throw new RuntimeException('OS temp directory is missing or not writable: ' . var_export($base, true));
-        }
-        $dir = $base . '/' . $prefix;
-        $lastError = 'unknown';
-        for ($attempt = 1; $attempt <= max(1, $retries); $attempt++) {
-            if (is_dir($dir)) {
-                self::removeTree($dir); // stale root from a crashed run (random+pid name)
-            }
-            if (@mkdir($dir, 0700, true) && is_dir($dir) && is_writable($dir)) {
-                return $dir;
-            }
-            $lastError = error_get_last()['message'] ?? 'unknown';
-            usleep(50000 * $attempt);
-        }
-        throw new RuntimeException('Cannot create isolated temp root ' . $dir . ' (last error: ' . $lastError . ')');
+        return self::$envSnapshot;
     }
 
     /**
-     * Configure native sessions for the test process: unique name + save
-     * path inside the run root. Fails closed when the save path cannot be
-     * created or is not writable.
+     * Capture the superglobal + env state for per-test isolation guards
+     * ($_SESSION, $_COOKIE, and every key under EnvSnapshot management).
      *
-     * @param string $runRoot per-run temp root
-     * @return string the session name assigned to this process
-     * @throws RuntimeException when the save path is unusable
+     * @return array{0:array<string,mixed>, 1:array<string,mixed>}
+     *         [$baselineState (for restoreSuperglobals), $envState (for verify)]
      */
-    public static function configureTestSession(string $runRoot): string
+    public static function captureSuperglobals(): array
     {
-        $savePath = $runRoot . '/sessions';
-        if (!is_dir($savePath) && !@mkdir($savePath, 0700, true)) {
-            throw new RuntimeException('Cannot create isolated session save path: ' . $savePath);
-        }
-        if (!is_writable($savePath)) {
-            throw new RuntimeException('Isolated session save path is not writable: ' . $savePath);
-        }
-        $name = 'tguitest' . bin2hex(random_bytes(4));
-        ini_set('session.save_handler', 'files');
-        ini_set('session.save_path', str_replace('\\', '/', $savePath));
-        ini_set('session.name', $name);
-        ini_set('session.use_cookies', '1');
-        ini_set('session.use_only_cookies', '1');
-        ini_set('session.use_strict_mode', '1');
-        ini_set('session.cookie_httponly', '1');
-        ini_set('session.sid_bits_per_character', '6');
-        ini_set('session.sid_length', '32');
-        ini_set('session.lazy_write', '1');
-        self::$sessionName = $name;
-        return $name;
-    }
-
-    /** @return string the session name for this process */
-    public static function sessionName(): string
-    {
-        if (self::$sessionName === null) {
-            throw new RuntimeException('Session not configured yet.');
-        }
-        return self::$sessionName;
-    }
-
-    /**
-     * Trap-safe recursive removal of $dir. Never throws (teardown must not
-     * mask the original test outcome). Retries the final rmdir briefly
-     * because 9p can lag on unlink.
-     *
-     * @param string $dir directory to remove
-     * @return void
-     */
-    public static function removeTree(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        $it = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($it as $item) {
-            $p = $item->getPathname();
-            if ($item->isDir()) {
-                @rmdir($p);
-            } else {
-                @unlink($p);
-            }
-        }
-        for ($i = 0; $i < 10 && is_dir($dir); $i++) {
-            usleep(50000);
-            @rmdir($dir);
-        }
-    }
-
-    /**
-     * Snapshot of the globals a test case may touch (env keys, $_SESSION,
-     * $_COOKIE, session ini). Use with restoreSuperglobals() in a finally.
-     *
-     * @param list<string> $extraEnv extra env keys under management
-     * @return array<string,mixed> captured state
-     */
-    public static function captureSuperglobals(array $extraEnv = []): array
-    {
-        if (!isset($_SESSION)) {
-            $_SESSION = [];
-        }
-        $envKeys = array_values(array_unique(array_merge([
-            'DB_DRIVER',
-            'TGUI_TEST_SQLITE_DEFAULT',
-            'TGUI_TEST_SQLITE_LOG',
-            'HA_SETTINGS_PATH',
-            'HA_MASTER_PATH',
-            'HA_SLAVES_PATH',
-            'TAC_ROOT_PATH',
-            'JWT_SECRET',
-            'JWT_ALGORITHM',
-        ], $extraEnv)));
+        $env = self::$envSnapshot !== null ? self::$envSnapshot->state() : [];
         return [
-            'env' => array_intersect_key($_ENV, array_flip($envKeys)),
-            'putenv' => array_combine($envKeys, array_map(static fn (string $k): ?string => getenv($k) ?: null, $envKeys)),
-            'session' => $_SESSION,
-            'cookies' => $_COOKIE ?? [],
-            'ini' => [
-                'session.save_path' => (string) ini_get('session.save_path'),
-                'session.name' => (string) ini_get('session.name'),
-            ],
+            ['_SESSION' => $_SESSION, '_COOKIE' => $_COOKIE],
+            ['env' => $env['env'] ?? [], 'putenv' => $env['putenv'] ?? []],
         ];
     }
 
     /**
-     * Restore a state captured by captureSuperglobals(): session/cookies
-     * wholesale, tracked env keys to their captured values, session ini
-     * back to the harness defaults.
-     *
-     * @param array<string,mixed> $state from captureSuperglobals()
-     * @return void
+     * Configure native sessions into the isolated root: unique session name
+     * (no cross-process cookie collision) and a temp save path.
      */
-    public static function restoreSuperglobals(array $state): void
+    public static function configureTestSession(string $runRoot): void
     {
-        if (!isset($_SESSION)) {
+        $sessionDir = $runRoot . DIRECTORY_SEPARATOR . 'sessions';
+        if (!is_dir($sessionDir) && !@mkdir($sessionDir, 0777, true)) {
+            throw new RuntimeException('IsolatedEnvironment: cannot create session dir ' . $sessionDir);
+        }
+        ini_set('session.save_path', $sessionDir);
+        ini_set('session.name', 'tguitest' . bin2hex(random_bytes(4)));
+        ini_set('session.use_strict_mode', '1');
+        ini_set('session.cookie_httponly', '1');
+        ini_set('session.lazy_write', '1');
+    }
+
+    /**
+     * Restore the pre-test superglobal state (session/cookie arrays + the
+     * snapshot's tracked env vars). Env keys are restored FIRST and then
+     * re-applied to the harness defaults below: the per-case snapshot
+     * captures the harness defaults (not the pre-process values), so a
+     * test that changed a tracked env key must see the harness default
+     * restored, and the harness defaults are exactly what the next case's
+     * baseline will capture.
+     */
+    public static function restoreSuperglobals(array $baseline): void
+    {
+        $snapshot = self::$envSnapshot;
+        if ($snapshot !== null) {
+            $snapshot->restore();
+        }
+        if (array_key_exists('_SESSION', $baseline)) {
+            $_SESSION = $baseline['_SESSION'];
+        } else {
             $_SESSION = [];
         }
-        $_SESSION = $state['session'] ?? [];
-        $_COOKIE = $state['cookies'] ?? [];
-        $ini = $state['ini'] ?? [];
-        if (isset($ini['session.save_path'])) {
-            ini_set('session.save_path', $ini['session.save_path']);
+        if (array_key_exists('_COOKIE', $baseline)) {
+            $_COOKIE = $baseline['_COOKIE'];
+        } else {
+            $_COOKIE = [];
         }
-        if (isset($ini['session.name'])) {
-            ini_set('session.name', $ini['session.name']);
+        // Re-assert the harness defaults so the next case starts from the
+        // same environment the suite bootstrap established.
+        if ($snapshot !== null) {
+            $snapshot->apply([
+                'DB_DRIVER' => 'sqlite',
+                'APP_ENV' => 'testing',
+                'TGUI_TEST_ROOT' => (string) self::$runRoot,
+                'TGUI_TEST_SQLITE_DEFAULT' => (string) self::$runRoot . '/tgui-test.sqlite',
+                'TGUI_TEST_SQLITE_LOG' => (string) self::$runRoot . '/tgui-test-log.sqlite',
+                'HA_SETTINGS_PATH' => (string) self::$runRoot . '/ha/ha-settings.yaml',
+                'HA_MASTER_PATH' => (string) self::$runRoot . '/ha/ha-master.yaml',
+                'HA_SLAVES_PATH' => (string) self::$runRoot . '/ha/ha-slaves.yaml',
+                'TAC_ROOT_PATH' => (string) self::$runRoot . '/tacacsgui',
+                'JWT_SECRET' => self::TEST_JWT_SECRET,
+                'JWT_ALGORITHM' => 'HS256',
+            ]);
         }
-        $tracked = array_unique(array_merge(array_keys($state['env'] ?? []), array_keys($state['putenv'] ?? [])));
-        foreach ($tracked as $k) {
-            if (array_key_exists($k, $state['env'] ?? [])) {
-                $_ENV[$k] = $state['env'][$k];
-                putenv($k . '=' . $state['env'][$k]);
-            } elseif (array_key_exists($k, $state['putenv'] ?? []) && $state['putenv'][$k] !== null) {
-                putenv($k . '=' . $state['putenv'][$k]);
-                unset($_ENV[$k]);
+    }
+
+    /**
+     * Recursively remove a tree. Bounded: only used on harness temp roots.
+     * The harness's temp roots live in the OS temp dir; network (9p) temp
+     * dirs can lag on unlink, so each removal is retried briefly.
+     */
+    public static function removeTree(string $path): void
+    {
+        if (!is_dir($path)) {
+            @unlink($path);
+            return;
+        }
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
             } else {
-                unset($_ENV[$k]);
-                putenv($k);
+                @unlink($item->getPathname());
             }
+        }
+        for ($i = 0; $i < 5 && is_dir($path); $i++) {
+            if (@rmdir($path)) {
+                return;
+            }
+            usleep(50000);
         }
     }
 }

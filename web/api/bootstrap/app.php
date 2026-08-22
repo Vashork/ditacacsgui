@@ -58,13 +58,43 @@ $container->set('db', function () use ($haRole, $slavePsk) {
     if ($driver === 'sqlite') {
         // DEV-ONLY: use SQLite files (no MySQL needed for local smoke-testing).
         $base   = __DIR__ . '/../storage/sqlite';
-        if (!is_dir($base)) { @mkdir($base, 0777, true); }
-        $defFile = $base . '/tgui.sqlite';
-        $logFile = $base . '/tgui_log.sqlite';
+        // TESTING-ONLY SEAM (integration harness): when APP_ENV=testing the two
+        // SQLite files are taken from TGUI_TEST_SQLITE_DEFAULT / TGUI_TEST_SQLITE_LOG
+        // and MUST resolve inside TGUI_TEST_ROOT (all enforced here, fail-closed).
+        // Outside APP_ENV=testing the repo paths above are used EXACTLY as before -
+        // this seam is not a general-purpose runtime configuration knob.
+        if (($_ENV['APP_ENV'] ?? '') === 'testing') {
+            $testRoot = (string) ($_ENV['TGUI_TEST_ROOT'] ?? '');
+            $defFile = (string) ($_ENV['TGUI_TEST_SQLITE_DEFAULT'] ?? '');
+            $logFile = (string) ($_ENV['TGUI_TEST_SQLITE_LOG'] ?? '');
+            $norm = static fn (string $p): string => rtrim(str_replace('\\', '/', $p), '/');
+            $rootN = $norm($testRoot);
+            $ok = $rootN !== '' && strlen($rootN) > 1
+                && !str_contains($testRoot, "\0")
+                && $norm($defFile) !== '' && $norm($logFile) !== ''
+                && !str_contains($defFile, "\0") && !str_contains($logFile, "\0")
+                && is_dir($rootN) && is_writable($rootN)
+                && str_starts_with($norm($defFile), $rootN . '/')
+                && str_starts_with($norm($logFile), $rootN . '/')
+                && $defFile !== $logFile;
+            if (!$ok) {
+                throw new \RuntimeException('TGUI_TEST_SQLITE_DEFAULT/TGUI_TEST_SQLITE_LOG must be distinct files inside TGUI_TEST_ROOT (fail-closed; no MySQL fallback).');
+            }
+            if (!is_file($defFile) || !is_writable($defFile)) {
+                throw new \RuntimeException('Test SQLite default file missing or not writable (fail-closed; no MySQL fallback): ' . $defFile);
+            }
+            if (!is_file($logFile) || !is_writable($logFile)) {
+                throw new \RuntimeException('Test SQLite logging file missing or not writable (fail-closed; no MySQL fallback): ' . $logFile);
+            }
+        } else {
+            if (!is_dir($base)) { @mkdir($base, 0777, true); }
+            $defFile = $base . '/tgui.sqlite';
+            $logFile = $base . '/tgui_log.sqlite';
 
-        // Create empty files so SQLiteConnector doesn't throw "does not exist".
-        if (!file_exists($defFile)) { touch($defFile); }
-        if (!file_exists($logFile)) { touch($logFile); }
+            // Create empty files so SQLiteConnector doesn't throw "does not exist".
+            if (!file_exists($defFile)) { touch($defFile); }
+            if (!file_exists($logFile)) { touch($logFile); }
+        }
 
         $capsule->addConnection(['driver' => 'sqlite', 'database' => $defFile, 'prefix' => '', 'foreign_key_constraints' => false], 'default');
         $capsule->addConnection(['driver' => 'sqlite', 'database' => $logFile, 'prefix' => '', 'foreign_key_constraints' => false], 'logging');
