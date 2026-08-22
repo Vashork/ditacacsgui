@@ -105,3 +105,12 @@ When the user asks you to lint or audit the wiki:
 - Keep page names lowercase with hyphens (e.g. `machine-learning.md`)
 - Write in clear, plain language
 - When uncertain about how to categorize something, ask the user
+
+## Git delivery
+
+- Every completed, verified atomic commit is pushed immediately to remote `ditacacsgui` on the current tracking branch (normally `master`). Local-only commits are not acceptable for finished work.
+- Unfinished or unverified changes stay unpushed until they are verified. This prevents publishing known-broken work while still delivering every verified commit right away.
+- Before any push, inspect `git status`, `git diff`, the staged diff, and the recent log. Never push secrets, `.omo/` evidence, caches (`__pycache__/`, `.php-cs-fixer.cache`), runtime DB/session/cache files, generated credentials, or unrelated untracked artifacts.
+- Normal push only: `git push ditacacsgui master`. Force-push, history rewrite (amend/reset/rebase/squash of pushed work), global Git config changes, and skipped hooks are forbidden unless the user explicitly authorizes them.
+- A failed push is a blocking delivery failure: stop and report the exact error, including the failed range and remote.
+- Verify after push: local HEAD must equal the remote tracking ref and `git ls-remote ditacacsgui refs/heads/master`.
